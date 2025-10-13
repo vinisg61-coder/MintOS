@@ -381,6 +381,7 @@ if [[ "$SOURCE_DVFS_CONFIG_NAME" != "$TARGET_DVFS_CONFIG_NAME" ]]; then
     LOG_STEP_IN "- Applying DVFS patches"
 
     DECODE_APK "system" "system/framework/ssrm.jar"
+    DECODE_APK "system" "system/priv-app/SamsungDeviceHealthManagerService/SamsungDeviceHealthManagerService.apk"
 
     FTP="
     system/framework/ssrm.jar/smali/com/android/server/ssrm/Feature.smali
@@ -388,6 +389,14 @@ if [[ "$SOURCE_DVFS_CONFIG_NAME" != "$TARGET_DVFS_CONFIG_NAME" ]]; then
     for f in $FTP; do
         sed -i "s/$SOURCE_DVFS_CONFIG_NAME/$TARGET_DVFS_CONFIG_NAME/g" "$APKTOOL_DIR/$f"
     done
+
+    if [ -f "$SRC_DIR/target/$TARGET_CODENAME/dvfs/$TARGET_DVFS_CONFIG_NAME.xml" ]; then
+        LOG "- Adding /system/system/priv-app/SamsungDeviceHealthManagerService/SamsungDeviceHealthManagerService.apk/res/raw/$TARGET_DVFS_CONFIG_NAME.xml"
+        EVAL "cp -a \"$SRC_DIR/target/$TARGET_CODENAME/dvfs/$TARGET_DVFS_CONFIG_NAME.xml\" \"$APKTOOL_DIR/system/priv-app/SamsungDeviceHealthManagerService/SamsungDeviceHealthManagerService.apk/res/raw/$TARGET_DVFS_CONFIG_NAME.xml\""
+    elif [ ! -f "$APKTOOL_DIR/system/priv-app/SamsungDeviceHealthManagerService/SamsungDeviceHealthManagerService.apk/res/raw/$TARGET_DVFS_CONFIG_NAME.xml" ]; then
+        _LOG "\"$TARGET_DVFS_CONFIG_NAME\" does not exist in SDHMS app"
+    fi
+
     LOG_STEP_OUT
 fi
 
