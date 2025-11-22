@@ -127,8 +127,11 @@ if [[ "$(GET_FP_SENSOR_TYPE "$SOURCE_FP_SENSOR_CONFIG")" != "$(GET_FP_SENSOR_TYP
             ADD_TO_WORK_DIR "a36xqnaxx" "system" "system/lib64/libandroid_runtime.so"
             ADD_TO_WORK_DIR "a36xqnaxx" "system" "system/lib64/libgui.so"
             ADD_TO_WORK_DIR "a36xqnaxx" "system" "system/lib64/libui.so"
-            APPLY_PATCH "system" "system/framework/services.jar" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/services.jar/0001-Set-FP_FEATURE_SENSOR_IS_ULTRASONIC-to-false.patch"
+            APPLY_PATCH "system" "system/framework/services.jar" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/services.jar/0001-Add-optical-FOD-support.patch"
+            APPLY_PATCH "system" "system/framework/framework.jar" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/framework.jar/0001-Add-optical-FOD-support.patch"
+            APPLY_PATCH "system" "system/priv-app/SecSettings/SecSettings.apk" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/SecSettings.apk/0001-Add-optical-FOD-support.patch"
             APPLY_PATCH "system" "system/priv-app/BiometricSetting/BiometricSetting.apk" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/BiometricSetting.apk/0001-Set-FP_FEATURE_SENSOR_IS_ULTRASONIC-to-false.patch"
+            APPLY_PATCH "system_ext" "priv-app/SystemUI/SystemUI.apk" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/SystemUI.apk/0001-Add-optical-FOD-support.patch"
         elif [[ "$(GET_FP_SENSOR_TYPE "$TARGET_FP_SENSOR_CONFIG")" == "side" ]]; then
             ADD_TO_WORK_DIR "b5qxxx" "system" "."
             APPLY_PATCH "system" "system/framework/services.jar" "$SRC_DIR/unica/patches/product_feature/fingerprint/qssi/services.jar/0001-Set-FP_FEATURE_SENSOR_IS_ULTRASONIC-to-false.patch"
