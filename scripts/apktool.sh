@@ -110,6 +110,10 @@ DECODE()
         EVAL "apktool d -b -r -api 29 -j \"$(nproc)\" -o \"$OUTPUT_PATH\" -p \"$FRAMEWORK_DIR\" -t \"$FRAMEWORK_TAG\" \"$INPUT_FILE\"" || exit 1
     fi
 
+    if [[ "$INPUT_FILE" == *"services.jar" ]]; then
+        EVAL "baksmali d \"$INPUT_FILE/classes.dex/2\" -a 29 --ac false --di false --sl -l -o \"$OUTPUT_PATH/smali_classes2\"" || exit 1
+    fi
+
     # https://github.com/iBotPeaches/Apktool/issues/3615
     if [[ "$INPUT_FILE" == *"framework.jar" ]]; then
         if unzip -l "$INPUT_FILE" | grep -q "debian.mime.types"; then
