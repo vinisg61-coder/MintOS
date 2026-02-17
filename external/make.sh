@@ -144,6 +144,7 @@ IMG2SDAT=true
 MAGISKBOOT=true
 SAMLOADER=true
 SIGNAPK=true
+SMALI=true
 
 ANDROID_TOOLS_EXEC=(
     "adb" "append2simg" "avbtool" "e2fsdroid"
@@ -178,6 +179,10 @@ SIGNAPK_EXEC=(
     "signapk" "signapk.jar"
 )
 CHECK_TOOLS "${SIGNAPK_EXEC[@]}" && SIGNAPK=false
+SMALI_EXEC=(
+    "android-smali.jar" "baksmali" "smali" "smali-baksmali.jar"
+)
+CHECK_TOOLS "${SMALI_EXEC[@]}" && SMALI=false
 
 if [[ "$1" == "--check-tools" ]]; then
     if ! $ANDROID_TOOLS && \
@@ -186,7 +191,8 @@ if [[ "$1" == "--check-tools" ]]; then
             ! $IMG2SDAT && \
             ! $MAGISKBOOT && \
             ! $SAMLOADER && \
-            ! $SIGNAPK; then
+            ! $SIGNAPK && \
+            ! $SMALI; then \
         exit 0
     else
         exit 1
@@ -282,6 +288,17 @@ if $SIGNAPK; then
     )
 
     BUILD "signapk" "$SRC_DIR/external/signapk" "${SIGNAPK_CMDS[@]}"
+fi
+if $SMALI; then
+    SMALI_CMDS=(
+        "./gradlew assemble baksmali:fatJar smali:fatJar"
+        "cp -a \"scripts/baksmali\" \"$TOOLS_DIR/bin\""
+        "cp -a \"scripts/smali\" \"$TOOLS_DIR/bin\""
+        "cp -a \"baksmali/build/libs/\"*-dev-fat.jar \"$TOOLS_DIR/bin/smali-baksmali.jar\""
+        "cp -a \"smali/build/libs/\"*-dev-fat.jar \"$TOOLS_DIR/bin/android-smali.jar\""
+    )
+
+    BUILD "baksmali/smali" "$SRC_DIR/external/smali" "${SMALI_CMDS[@]}"
 fi
 
 exit 0
