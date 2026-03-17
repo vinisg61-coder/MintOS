@@ -1,0 +1,107 @@
+From c53b4745196b047bca3c080af9e707b2e6d46d73 Mon Sep 17 00:00:00 2001
+From: Samuel Pascua <pascua.samuel.14@gmail.com>
+Date: Tue, 17 Mar 2026 07:58:53 +0800
+Subject: [PATCH] Disable pass support
+
+Signed-off-by: Samuel Pascua <pascua.samuel.14@gmail.com>
+---
+ .../server/StorageManagerService.smali        | 81 +------------------
+ 1 file changed, 3 insertions(+), 78 deletions(-)
+
+diff --git a/smali/com/android/server/StorageManagerService.smali b/smali/com/android/server/StorageManagerService.smali
+index 647e1942..dbe8ad1f 100644
+--- a/smali/com/android/server/StorageManagerService.smali
++++ b/smali/com/android/server/StorageManagerService.smali
+@@ -10144,86 +10144,11 @@
+ .end method
+ 
+ .method public final isPassSupport()Z
+-    .locals 5
+-
+-    invoke-static {}, Landroid/os/storage/StorageManager;->isFileEncrypted()Z
+-
+-    move-result v0
+-
+-    const/4 v1, 0x0
+-
+-    const-string/jumbo v2, "StorageManagerService"
+-
+-    if-nez v0, :cond_0
+-
+-    const-string/jumbo p0, "isPassSupport - FBE is not enabled"
+-
+-    invoke-static {v2, p0}, Landroid/util/sysfwutil/Slog;->w(Ljava/lang/String;Ljava/lang/String;)I
+-
+-    return v1
+-
+-    :cond_0
+-    invoke-static {}, Landroid/os/Binder;->getCallingUid()I
+-
+-    move-result v0
+-
+-    invoke-static {v0}, Landroid/os/UserHandle;->getUserId(I)I
+-
+-    move-result v0
+-
+-    new-instance v3, Ljava/lang/StringBuilder;
+-
+-    const-string v4, "Get PASS instance for userId"
+-
+-    invoke-direct {v3, v4}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
+-
+-    invoke-virtual {v3, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+-
+-    invoke-virtual {v3}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+-
+-    move-result-object v3
+-
+-    invoke-static {v2, v3}, Landroid/util/sysfwutil/Slog;->d(Ljava/lang/String;Ljava/lang/String;)I
+-
+-    if-eqz v0, :cond_1
+-
+-    const-string p0, "Current user is not support PASS"
+-
+-    invoke-static {v2, p0}, Landroid/util/sysfwutil/Slog;->w(Ljava/lang/String;Ljava/lang/String;)I
+-
+-    return v1
+-
+-    :cond_1
+-    invoke-virtual {p0, v0}, Lcom/android/server/StorageManagerService;->isCeStorageUnlocked(I)Z
+-
+-    move-result p0
+-
+-    if-nez p0, :cond_2
+-
+-    new-instance p0, Ljava/lang/StringBuilder;
+-
+-    const-string/jumbo v3, "User "
+-
+-    invoke-direct {p0, v3}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
+-
+-    invoke-virtual {p0, v0}, Ljava/lang/StringBuilder;->append(I)Ljava/lang/StringBuilder;
+-
+-    const-string v0, "\'s CE storage is already locked"
+-
+-    invoke-virtual {p0, v0}, Ljava/lang/StringBuilder;->append(Ljava/lang/String;)Ljava/lang/StringBuilder;
+-
+-    invoke-virtual {p0}, Ljava/lang/StringBuilder;->toString()Ljava/lang/String;
+-
+-    move-result-object p0
+-
+-    invoke-static {v2, p0}, Landroid/util/sysfwutil/Slog;->d(Ljava/lang/String;Ljava/lang/String;)I
+-
+-    return v1
++    .locals 1
+ 
+-    :cond_2
+-    const/4 p0, 0x1
++    const/4 v0, 0x0
+ 
+-    return p0
++    return v0
+ .end method
+ 
+ .method public final isPassUnlocked()Z
+-- 
+2.52.0
+

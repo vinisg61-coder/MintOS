@@ -1,5 +1,9 @@
 TARGET_FIRMWARE_PATH="$FW_DIR/$(echo -n "$TARGET_FIRMWARE" | sed 's./._.g' | rev | cut -d "_" -f2- | rev)"
 
+# Disable sec_pass
+if ! grep -q "sec_pass_data_file" "$WORK_DIR/vendor/etc/selinux/vendor_file_contexts"; then
+    APPLY_PATCH "system" "system/framework/services.jar" "$SRC_DIR/unica/patches/miscs/sec_pass/0001-Disable-pass-support.patch"
+fi
 
 # Fix portrait mode
 if [[ -f "$TARGET_FIRMWARE_PATH/vendor/lib64/libDualCamBokehCapture.camera.samsung.so" ]]; then
