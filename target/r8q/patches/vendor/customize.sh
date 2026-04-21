@@ -69,3 +69,9 @@ if ! grep -q "G781B" "$WORK_DIR/vendor/etc/init/init.nfc.samsung.rc"; then
         echo "    setprop ro.vendor.nfc.feature.chipname \"SLSI\""
     } >> "$WORK_DIR/vendor/etc/init/init.nfc.samsung.rc"
 fi
+
+LOG_STEP_IN "- Removing configstore-1.1 service"
+DELETE_FROM_WORK_DIR "vendor" "bin/hw/android.hardware.configstore@1.1-service"
+DELETE_FROM_WORK_DIR "vendor" "etc/init/android.hardware.configstore@1.1-service.rc"
+DELETE_FROM_WORK_DIR "vendor" "etc/seccomp_policy/configstore@1.1.policy"
+LOG_STEP_OUT
