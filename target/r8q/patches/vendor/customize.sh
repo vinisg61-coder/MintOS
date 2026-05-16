@@ -75,3 +75,9 @@ DELETE_FROM_WORK_DIR "vendor" "bin/hw/android.hardware.configstore@1.1-service"
 DELETE_FROM_WORK_DIR "vendor" "etc/init/android.hardware.configstore@1.1-service.rc"
 DELETE_FROM_WORK_DIR "vendor" "etc/seccomp_policy/configstore@1.1.policy"
 LOG_STEP_OUT
+
+LOG_STEP_IN "- Adding FBE v2 support"
+sed -i '\|/dev/block/bootdevice/by-name/userdata|c\
+/dev/block/bootdevice/by-name/userdata                 /data                  f2fs    noatime,nosuid,nodev,discard,usrquota,grpquota,fsync_mode=nobarrier,reserve_root=32768,resgid=5678,inlinecrypt    latemount,wait,check,fileencryption=ice,quota,reservedsize=128M,checkpoint=fs' \
+"$WORK_DIR/vendor/etc/fstab.qcom"
+LOG_STEP_OUT
