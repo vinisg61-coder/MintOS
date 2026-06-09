@@ -1,1 +1,2 @@
 ro.crypto.volume.options=::v2
+ro.crypto.allow_encrypt_override=
