@@ -1,5 +1,9 @@
-# Disable UFFD GC
+# ART extremo - UFFD off + speed-profile no talo
 ro.dalvik.vm.enable_uffd_gc=false
+dalvik.vm.madvise.vma_anon_enabled=true
+dalvik.vm.monodroid_gctest_enabled=false
+persist.device_config.runtime_native_boot.iorap_readahead_enable=true
+ro.com.google.cast.need_cast_config_updates=false
 
 # Remove duplicated props
 bluetooth.profile.bap.unicast.client.enabled=

@@ -1,2 +1,42 @@
 # Netflix
 ro.netflix.bsp_rev=Q7325-SPY-33758-1
+
+# Extreme performance - ART / SurfaceFlinger / RAM (A52s 778G extreme)
+# ART - dex2oat extremo
+dalvik.vm.dex2oat64.enabled=true
+dalvik.vm.dex2oat.threads=8
+dalvik.vm.dex2oat.cpu-set=0,1,2,3,4,5,6,7
+dalvik.vm.image-dex2oat-threads=8
+dalvik.vm.boot-dex2oat-threads=8
+dalvik.vm.dex2oat-filter=speed
+dalvik.vm.image-dex2oat-filter=speed
+dalvik.vm.useartservice=true
+dalvik.vm.dexopt.secondary-dex-dex2oat-cpu-set=0,1,2,3,4,5,6,7
+ro.pm.dexopt.install=speed-profile
+ro.pm.dexopt.bg-dexopt=speed-profile
+pm.dexopt.shared=speed
+dalvik.vm.heapsize=512m
+dalvik.vm.heapgrowthlimit=256m
+dalvik.vm.heaptargetutilization=0.75
+dalvik.vm.heapminfree=8m
+dalvik.vm.heapmaxfree=32m
+
+# SurfaceFlinger extremo - 120Hz no talo, vsync 0 lag
+ro.surface_flinger.vsync_event_phase_offset_ns=0
+ro.surface_flinger.use_content_detection=true
+ro.surface_flinger.set_idle_timer_ms=2000
+ro.surface_flinger.set_touch_timer_ms=300
+ro.surface_flinger.set_display_power_timer_ms=500
+ro.surface_flinger.max_frame_buffer_acquired_buffers=3
+ro.surface_flinger.has_wide_color_display=true
+ro.surface_flinger.has_HDR_display=true
+debug.sf.enable_gl_backpressure=1
+debug.sf.latch_unsignaled=1
+debug.sf.disable_client_composition_cache=0
+persist.sys.sf.color_saturation=1.0
+
+# RAM & LMK extremo
+ro.sys.fw.bg_apps_limit=80
+ro.config.dha_cached_max=32
+ro.config.dha_empty_max=48
+ro.config.oomminfree_high=18432,23040,27648,32256,55296,80640
