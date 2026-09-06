@@ -33,6 +33,7 @@ if [[ "$SOURCE_PRODUCT_FIRST_API_LEVEL" != "$TARGET_PRODUCT_FIRST_API_LEVEL" ]];
     system/framework/services.jar/smali/com/android/server/knox/dar/ddar/ta/TAProxy.smali
     "
     for f in $FTP; do
+        [ -f "$APKTOOL_DIR/$f" ] || { LOGW "Skip missing $f"; continue; }
         sed -i \
             "s/\"MAINLINE_API_LEVEL: $SOURCE_PRODUCT_FIRST_API_LEVEL\"/\"MAINLINE_API_LEVEL: $TARGET_PRODUCT_FIRST_API_LEVEL\"/g" \
             "$APKTOOL_DIR/$f"
@@ -94,6 +95,7 @@ if [[ "$SOURCE_AUTO_BRIGHTNESS_TYPE" != "$TARGET_AUTO_BRIGHTNESS_TYPE" ]]; then
     system/priv-app/SecSettings/SecSettings.apk/smali_classes4/com/samsung/android/settings/Rune.smali
     "
     for f in $FTP; do
+        [ -f "$APKTOOL_DIR/$f" ] || { LOGW "Skip missing $f (AFZH3)"; continue; }
         sed -i "s/\"$SOURCE_AUTO_BRIGHTNESS_TYPE\"/\"$TARGET_AUTO_BRIGHTNESS_TYPE\"/g" "$APKTOOL_DIR/$f"
     done
     LOG_STEP_OUT
