@@ -309,6 +309,10 @@ if [[ "$SOURCE_HFR_SUPPORTED_REFRESH_RATE" != "$TARGET_HFR_SUPPORTED_REFRESH_RAT
     system/priv-app/SecSettings/SecSettings.apk/smali_classes4/com/samsung/android/settings/display/SecDisplayUtils.smali
     "
     for f in $FTP; do
+        if [ ! -f "$APKTOOL_DIR/$f" ]; then
+            LOGW "Skip missing $f (HFR layout differs on target firmware)"
+            continue
+        fi
         if [[ "$TARGET_HFR_SUPPORTED_REFRESH_RATE" != "none" ]]; then
             sed -i "s/\"$SOURCE_HFR_SUPPORTED_REFRESH_RATE\"/\"$TARGET_HFR_SUPPORTED_REFRESH_RATE\"/g" "$APKTOOL_DIR/$f"
         else
