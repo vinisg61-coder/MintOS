@@ -175,20 +175,12 @@ for i in "${FIRMWARES[@]}"; do
     while true; do
         # shellcheck disable=SC2164
         # samloader-rs (Rust) - no IMEI/SERIAL needed, binary at $TOOLS_DIR/bin/samloader
-        # Keep compat with old python samloader if still present
+        # Detect Rust vs Python by checking download --help for out-dir flag (Rust has -d/--out-dir)
         (
         cd "$OUT_DIR"
-        if samloader --help 2>&1 | grep -q "samloader-rs"; then
-            # Rust: samloader -m MODEL -r CSC download (output to current dir, then move)
-            # Try new syntax: samloader download -m MODEL -r CSC -o DIR, fallback to old
-            if samloader download --help 2>&1 | grep -q "output"; then
-                samloader -m "$MODEL" -r "$CSC" download -o "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || samloader download -m "$MODEL" -r "$CSC" -o "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || exit 1
-            else
-                samloader -m "$MODEL" -r "$CSC" download 1> /dev/null || samloader download -m "$MODEL" -r "$CSC" 1> /dev/null || exit 1
-                # Rust downloads zip to OUT_DIR, move to target
-                mv -f "$OUT_DIR"/*.zip "$ODIN_DIR/${MODEL}_${CSC}/" 2>/dev/null || true
-                mv -f *.zip "$ODIN_DIR/${MODEL}_${CSC}/" 2>/dev/null || true
-            fi
+        if samloader download --help 2>&1 | grep -q "out-dir"; then
+            # Rust: samloader download -m MODEL -r CSC -d DIR [-j 8]
+            samloader download -m "$MODEL" -r "$CSC" -d "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || samloader download -m "$MODEL" -r "$CSC" --out-dir "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || exit 1
         else
             samloader -m "$MODEL" -r "$CSC" -i "$IMEI" -s "$SERIAL_NO" download -O "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || exit 1
         fi
