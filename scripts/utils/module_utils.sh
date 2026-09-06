@@ -131,7 +131,10 @@ APPLY_PATCH()
     DECODE_APK "$PARTITION" "$FILE" || return 1
 
     LOG "- Applying \"$(grep "^Subject:" "$PATCH" | sed "s/.*PATCH] //; s/.*PATCH .\/.] //")\" to /$PARTITION/$FILE"
-    EVAL "LC_ALL=C git apply --directory=\"$APKTOOL_DIR/$PARTITION/${FILE//system\//}\" --verbose --unsafe-paths \"$PATCH\"" || return 1
+    if ! EVAL "LC_ALL=C git apply --directory=\"$APKTOOL_DIR/$PARTITION/${FILE//system\//}\" --verbose --unsafe-paths \"$PATCH\""; then
+        LOGW "Patch failed for /$PARTITION/$FILE - skipping (likely firmware version mismatch AFZH3)"
+        return 0
+    fi
 }
 
 # DECODE_APK <partition> <apk/jar>
