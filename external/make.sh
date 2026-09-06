@@ -172,7 +172,7 @@ MAGISKBOOT_EXEC=(
 )
 CHECK_TOOLS "${MAGISKBOOT_EXEC[@]}" && MAGISKBOOT=false
 SAMLOADER_EXEC=(
-    "../venv/bin/samloader"
+    "samloader"
 )
 CHECK_TOOLS "${SAMLOADER_EXEC[@]}" && SAMLOADER=false
 SIGNAPK_EXEC=(
@@ -277,8 +277,8 @@ if $MAGISKBOOT; then
 fi
 if $SAMLOADER; then
     SAMLOADER_CMDS=(
-        "python3 -m venv \"$TOOLS_DIR/venv\""
-        "source \"$TOOLS_DIR/venv/bin/activate\"; pip3 install ."
+        "cargo build --release"
+        "cp -a \"target/release/samloader\" \"$TOOLS_DIR/bin/samloader\""
     )
 
     BUILD "samloader" "$SRC_DIR/external/samloader" "${SAMLOADER_CMDS[@]}"

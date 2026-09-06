@@ -18,7 +18,11 @@
 
 # [
 source "$SRC_DIR/scripts/utils/firmware_utils.sh" || exit 1
-source "$TOOLS_DIR/venv/bin/activate" || exit 1
+# samloader-rs (Rust) is standalone binary at $TOOLS_DIR/bin/samloader, no venv needed
+# fallback to old python venv if present (compat)
+if [ -f "$TOOLS_DIR/venv/bin/activate" ]; then
+    source "$TOOLS_DIR/venv/bin/activate" || true
+fi
 
 FORCE=false
 
@@ -170,10 +174,24 @@ for i in "${FIRMWARES[@]}"; do
     # Loop infinetely until download succeeds
     while true; do
         # shellcheck disable=SC2164
-        # Anan's samloader stores its logs in the current working directory, let's move into OUT_DIR just for this time
+        # samloader-rs (Rust) - no IMEI/SERIAL needed, binary at $TOOLS_DIR/bin/samloader
+        # Keep compat with old python samloader if still present
         (
         cd "$OUT_DIR"
-        samloader -m "$MODEL" -r "$CSC" -i "$IMEI" -s "$SERIAL_NO" download -O "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || exit 1
+        if samloader --help 2>&1 | grep -q "samloader-rs"; then
+            # Rust: samloader -m MODEL -r CSC download (output to current dir, then move)
+            # Try new syntax: samloader download -m MODEL -r CSC -o DIR, fallback to old
+            if samloader download --help 2>&1 | grep -q "output"; then
+                samloader -m "$MODEL" -r "$CSC" download -o "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || samloader download -m "$MODEL" -r "$CSC" -o "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || exit 1
+            else
+                samloader -m "$MODEL" -r "$CSC" download 1> /dev/null || samloader download -m "$MODEL" -r "$CSC" 1> /dev/null || exit 1
+                # Rust downloads zip to OUT_DIR, move to target
+                mv -f "$OUT_DIR"/*.zip "$ODIN_DIR/${MODEL}_${CSC}/" 2>/dev/null || true
+                mv -f *.zip "$ODIN_DIR/${MODEL}_${CSC}/" 2>/dev/null || true
+            fi
+        else
+            samloader -m "$MODEL" -r "$CSC" -i "$IMEI" -s "$SERIAL_NO" download -O "$ODIN_DIR/${MODEL}_${CSC}" 1> /dev/null || exit 1
+        fi
         )
 
         ZIP_FILE="$(find "$ODIN_DIR/${MODEL}_${CSC}" -name "*.zip" | sort -r | head -n 1)"
@@ -201,6 +219,7 @@ for i in "${FIRMWARES[@]}"; do
     LOG_STEP_OUT; LOG_STEP_OUT
 done
 
-deactivate
+# deactivate venv if was activated
+if command -v deactivate &>/dev/null; then deactivate || true; fi
 
 exit 0
