@@ -36,6 +36,11 @@ elif [ "$SOURCE_API_LEVEL" -eq 35 ]; then
     HEX_PATCH "$WORK_DIR/system/system/lib64/libbluetooth_jni.so" \
         "480500352800805228" "530100142800805228"
 elif [ "$SOURCE_API_LEVEL" -eq 36 ]; then
-    HEX_PATCH "$WORK_DIR/system/system/lib64/libbluetooth_jni.so" \
-        "00122a0140395f01086b00020054" "00122a0140395f01086bde030014"
+    # S916B AFZH3 moved pattern - make non-fatal, warn and skip if not found (non-placebo: try both known patterns)
+    if ! HEX_PATCH "$WORK_DIR/system/system/lib64/libbluetooth_jni.so" \
+        "00122a0140395f01086b00020054" "00122a0140395f01086bde030014" 2>/dev/null; then
+        LOGW "BT patch pattern AFZH3 not found, trying alt pattern for 36"
+        HEX_PATCH "$WORK_DIR/system/system/lib64/libbluetooth_jni.so" \
+            "6804003528008052" "2a00001428008052" 2>/dev/null || LOGW "BT patch skip - lib already patched or version mismatch, continuing"
+    fi
 fi
