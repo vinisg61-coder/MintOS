@@ -1,2 +1,5 @@
 # Netflix
 ro.netflix.bsp_rev=Q7325-SPY-33758-1
+
+# Fix RIL SIM-slot detection on the Android 16 base (dual-SIM SM-A528B)
+ro.telephony.sim_slots.count=2

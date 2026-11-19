@@ -1,0 +1,4 @@
+id=hfr
+name=Adaptive refresh rate
+author=salvogiangri, A52sxq adaptation
+description=Enables content-based 60/120 Hz refresh switching for the Galaxy A52s.
