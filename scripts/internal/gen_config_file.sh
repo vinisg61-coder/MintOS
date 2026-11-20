@@ -87,6 +87,9 @@ fi
 #     String containing the source/target device firmware to use in the format of "Model number/CSC/IMEI".
 #     IMEI number is necessary to fetch the firmware from FUS, alternatively the device serial number can be used.
 #
+#   [SOURCE/TARGET]_FIRMWARE_VERSION
+#     Optional Samsung PDA/CSC/CP/CSC version override. When set, this version is used instead of the latest FUS version.
+#
 #   [SOURCE/TARGET]_EXTRA_FIRMWARES
 #     If defined, this set of extra devices firmwares will be downloaded/extracted when running `download_fw`/`extract_fw`
 #     along with the ones set in [SOURCE/TARGET]_FIRMWARE.
@@ -325,6 +328,9 @@ fi
     GET_BUILD_VAR "ROM_CODENAME"
     GET_BUILD_VAR "ROM_BUILD_TIMESTAMP" "$(date +%s)"
     GET_BUILD_VAR "SOURCE_FIRMWARE"
+    if [ -n "${SOURCE_FIRMWARE_VERSION:-}" ]; then
+        GET_BUILD_VAR "SOURCE_FIRMWARE_VERSION"
+    fi
     if [ "${#SOURCE_EXTRA_FIRMWARES[@]}" -ge 1 ]; then
         echo "SOURCE_EXTRA_FIRMWARES=\"$(IFS=":"; printf '%s' "${SOURCE_EXTRA_FIRMWARES[*]}")\""
     else
