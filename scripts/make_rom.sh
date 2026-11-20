@@ -118,26 +118,31 @@ if $BUILD_ROM; then
     "$SRC_DIR/scripts/internal/create_work_dir.sh" || exit 1
     LOG_STEP_OUT
 
+    export ROM_BUILD_ERROR_LOG="$OUT_DIR/target/$TARGET_CODENAME/rom-build-errors.log"
+    : > "$ROM_BUILD_ERROR_LOG" || exit 1
+
     if [ -d "$SRC_DIR/unica/patches" ]; then
         LOG_STEP_IN true "Applying ROM patches"
-        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/patches" || exit 1
+        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/patches" || RECORD_ROM_BUILD_ERROR "could not complete ROM patch processing"
         LOG_STEP_OUT
     fi
     if [ -d "$SRC_DIR/target/$TARGET_CODENAME/patches" ]; then
         LOG_STEP_IN true "Applying device patches"
-        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/target/$TARGET_CODENAME/patches" || exit 1
+        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/target/$TARGET_CODENAME/patches" || RECORD_ROM_BUILD_ERROR "could not complete device patch processing"
         LOG_STEP_OUT
     fi
 
     if [ -d "$SRC_DIR/unica/mods" ]; then
         LOG_STEP_IN true "Applying ROM mods"
-        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/mods" || exit 1
+        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/mods" || RECORD_ROM_BUILD_ERROR "could not complete ROM mod processing"
         LOG_STEP_OUT
     fi
 
     if [ -d "$APKTOOL_DIR" ]; then
         LOG_STEP_IN true "Building APKs/JARs"
 
+        APK_BUILD_PIDS=()
+        APK_BUILD_FILES=()
         while IFS= read -r f; do
             f="${f/$APKTOOL_DIR\//}"
             PARTITION="$(cut -d "/" -f 1 -s <<< "$f")"
@@ -146,12 +151,27 @@ if $BUILD_ROM; then
             else
                 "$SRC_DIR/scripts/apktool.sh" b "$PARTITION" "$(cut -d "/" -f 2- -s <<< "$f")" &
             fi
+            APK_BUILD_PIDS+=("$!")
+            APK_BUILD_FILES+=("/$f")
         done < <(find "$APKTOOL_DIR" -type d \( -name "*.apk" -o -name "*.jar" \))
 
-        # shellcheck disable=SC2046
-        wait $(jobs -p) || exit 1
+        for i in "${!APK_BUILD_PIDS[@]}"; do
+            if wait "${APK_BUILD_PIDS[$i]}"; then
+                :
+            else
+                BUILD_STATUS=$?
+                RECORD_ROM_BUILD_ERROR "APK/JAR build failed for ${APK_BUILD_FILES[$i]} (exit $BUILD_STATUS)"
+            fi
+        done
 
         LOG_STEP_OUT
+    fi
+
+    if [ -s "$ROM_BUILD_ERROR_LOG" ]; then
+        rm -f "$WORK_DIR/.completed"
+        LOGE "ROM build collected the following issues; skipping flashable ZIP creation:"
+        cat "$ROM_BUILD_ERROR_LOG" >&2
+        exit 1
     fi
 
     echo -n "$(GET_WORK_DIR_HASH)" > "$WORK_DIR/.completed"

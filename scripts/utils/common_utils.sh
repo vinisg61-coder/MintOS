@@ -18,6 +18,18 @@
 # [
 source "$SRC_DIR/scripts/utils/log_utils.sh"
 
+RECORD_ROM_BUILD_ERROR()
+{
+    local MESSAGE="$*"
+    [ -n "$MESSAGE" ] || return 0
+
+    LOGW "ROM build issue collected: $MESSAGE"
+    if [ -n "${ROM_BUILD_ERROR_LOG:-}" ]; then
+        mkdir -p "$(dirname "$ROM_BUILD_ERROR_LOG")"
+        printf '[%s] %s\n' "$(date -u +%FT%TZ)" "$MESSAGE" >> "$ROM_BUILD_ERROR_LOG"
+    fi
+}
+
 _CHECK_NON_EMPTY_PARAM()
 {
     if [ ! "$2" ]; then
