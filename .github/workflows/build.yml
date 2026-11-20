@@ -81,18 +81,47 @@ jobs:
         with:
           retain: 'compiler_cmake'
 
+      - name: Calculate apt cache key
+        id: apt-cache-key
+        run: |
+          packages_hash="$(sha256sum scripts/apt-build-packages.txt | cut -d' ' -f1)"
+          echo "key=apt-${RUNNER_OS}-${ImageOS}-${ImageVersion}-${packages_hash}" >> "$GITHUB_OUTPUT"
+          echo "prefix=apt-${RUNNER_OS}-${ImageOS}-" >> "$GITHUB_OUTPUT"
+
+      - name: Restore apt package cache
+        id: apt-cache
+        uses: actions/cache/restore@v4
+        continue-on-error: true
+        with:
+          path: .cache/apt/archives
+          key: ${{ steps.apt-cache-key.outputs.key }}
+          restore-keys: ${{ steps.apt-cache-key.outputs.prefix }}
+
       - name: Set up build environment
         run: |
+          apt_archives="$GITHUB_WORKSPACE/.cache/apt/archives"
+          mkdir -p "$apt_archives/partial"
+          sudo chown _apt "$apt_archives/partial"
+          sudo chmod 700 "$apt_archives/partial"
           sudo apt update
-          DEBIAN_FRONTEND=noninteractive sudo apt install -yq \
-            p7zip-full jq attr ccache clang ffmpeg golang \
-            libbrotli-dev libgtest-dev libprotobuf-dev libunwind-dev libpcre2-dev \
-            libzstd-dev lld jq protobuf-compiler pcre2-utils webp \
-            curl xxd patchelf flex bison libarchive-tools build-essential python3.12-venv device-tree-compiler
+          mapfile -t apt_packages < scripts/apt-build-packages.txt
+          sudo env DEBIAN_FRONTEND=noninteractive apt install -yq \
+            -o "Dir::Cache::archives=$apt_archives" \
+            -o APT::Keep-Downloaded-Packages=true \
+            "${apt_packages[@]}"
+          sudo chmod 755 "$apt_archives/partial"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo -n "${{ secrets.PLATFORM_KEY_PK8 }}" | base64 --decode > security/platform.pk8
           echo -n "${{ secrets.PLATFORM_KEY_PEM }}" | base64 --decode > security/platform.x509.pem
+
+      - name: Save apt package cache
+        if: success() && steps.apt-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: .cache/apt/archives
+          key: ${{ steps.apt-cache-key.outputs.key }}
 
       - name: Set up JDK 11
         uses: actions/setup-java@v4
