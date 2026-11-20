@@ -132,9 +132,9 @@ GET_LATEST_FIRMWARE()
     fi
 
     # FUS can still resolve the version when Samsung's FOTA XML endpoint is
-    # temporarily unavailable. The tool is built into the workflow venv.
-    if [ -x "$TOOLS_DIR/venv/bin/samloader" ]; then
-        if "$TOOLS_DIR/venv/bin/samloader" -m "$MODEL" -r "$CSC" checkupdate 2> /dev/null; then
+    # temporarily unavailable. Use the Rust client for current FUS responses.
+    if [ -x "$TOOLS_DIR/bin/samloader" ]; then
+        if "$TOOLS_DIR/bin/samloader" check-update --model "$MODEL" --region "$CSC" 2> /dev/null; then
             return 0
         fi
     fi

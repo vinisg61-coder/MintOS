@@ -33,7 +33,6 @@ jobs:
             external/apktool \
             external/erofs-utils \
             external/img2sdat \
-            external/samloader \
             external/signapk \
             external/smali | sha256sum | cut -d' ' -f1)"
           echo "key=$key" >> "$GITHUB_OUTPUT"
@@ -53,7 +52,6 @@ jobs:
             external/apktool \
             external/erofs-utils \
             external/img2sdat \
-            external/samloader \
             external/signapk \
             external/smali
 
@@ -145,7 +143,7 @@ jobs:
         continue-on-error: true
         with:
           path: out/tools
-          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
+          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/download_samloader.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
       - name: Build dependencies
         env:
@@ -160,7 +158,7 @@ jobs:
         continue-on-error: true
         with:
           path: out/tools
-          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
+          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/download_samloader.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
       - name: Calculate firmware cache paths
         id: firmware-paths
