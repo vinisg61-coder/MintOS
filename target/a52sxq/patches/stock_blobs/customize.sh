@@ -80,8 +80,16 @@ ADD_TO_WORK_DIR "pa1qxxx" "system" "system/lib64/libnfc_sec_jni.so"
 ADD_TO_WORK_DIR "pa1qxxx" "system" "system/lib64/libnfc-nci_flags.so"
 ADD_TO_WORK_DIR "pa1qxxx" "system" "system/lib64/libnfc-sec.so"
 ADD_TO_WORK_DIR "pa1qxxx" "system" "system/lib64/libstatslog_nfc.so"
-EVAL "ln -sf \"/system/lib64/libnfc_sec_jni.so\" \"$WORK_DIR/system/system/priv-app/NfcNci/lib/arm64/libnfc_sec_jni.so\""
-SET_METADATA "system" "system/priv-app/NfcNci/lib/arm64/libnfc_sec_jni.so" 0 0 644 "u:object_r:system_file:s0"
+NFC_LIB_DIR="$WORK_DIR/system/system/priv-app/NfcNci/lib/arm64"
+if [ -f "$WORK_DIR/system/system/priv-app/NfcNci/NfcNci.apk" ]; then
+    mkdir -p "$NFC_LIB_DIR"
+    SET_METADATA "system" "system/priv-app/NfcNci/lib" 0 0 755 "u:object_r:system_file:s0"
+    SET_METADATA "system" "system/priv-app/NfcNci/lib/arm64" 0 0 755 "u:object_r:system_file:s0"
+    EVAL "ln -sf \"/system/lib64/libnfc_sec_jni.so\" \"$NFC_LIB_DIR/libnfc_sec_jni.so\""
+    SET_METADATA "system" "system/priv-app/NfcNci/lib/arm64/libnfc_sec_jni.so" 0 0 644 "u:object_r:system_file:s0"
+else
+    LOGW "NfcNci.apk not present in the selected source; skipping the NFC JNI link"
+fi
 LOG_STEP_OUT
 
 LOG_STEP_IN "- Adding a73xqxx wpa_supplicant"

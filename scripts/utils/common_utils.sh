@@ -18,6 +18,11 @@
 # [
 source "$SRC_DIR/scripts/utils/log_utils.sh"
 
+IS_ROM_BUILD_DEBUG()
+{
+    [[ "${ROM_BUILD_MODE:-normal}" == "debug" ]]
+}
+
 RECORD_ROM_BUILD_ERROR()
 {
     local MESSAGE="$*"
@@ -215,11 +220,13 @@ ADD_TO_WORK_DIR()
 
     if [ ! -d "$SOURCE" ]; then
         LOGE "Folder not found: ${SOURCE//$SRC_DIR\//}"
+        RECORD_ROM_BUILD_ERROR "source folder not found while adding partition $PARTITION: ${SOURCE//$SRC_DIR\//}"
         return 1
     fi
 
     if ! IS_VALID_PARTITION_NAME "$PARTITION"; then
         LOGE "\"$PARTITION\" is not a valid partition name"
+        RECORD_ROM_BUILD_ERROR "invalid partition while adding files: $PARTITION"
         return 1
     fi
 
@@ -265,6 +272,7 @@ ADD_TO_WORK_DIR()
             EVAL "cat \"$SOURCE_FILE.\"* > \"$TARGET_FILE\"" || exit 1
         else
             LOGE "File not found: ${SOURCE_FILE//$SRC_DIR\//}"
+            RECORD_ROM_BUILD_ERROR "source file not found while adding partition $PARTITION: ${SOURCE_FILE//$SRC_DIR\//}"
             return 1
         fi
     else
@@ -466,7 +474,7 @@ DELETE_FROM_WORK_DIR()
     if [[ "$FILE" == *".so" ]]; then
         while IFS= read -r f; do
             sed -i "/$(basename "$FILE")/d" "$f"
-        done < <(grep -l "$(basename "$FILE")" "$WORK_DIR/system/system/etc/public.libraries"*.txt)
+        done < <(grep -l "$(basename "$FILE")" "$WORK_DIR/system/system/etc/public.libraries"*.txt 2>/dev/null || true)
     fi
 
     return 0
@@ -481,15 +489,21 @@ EVAL()
     local CMD="$1"
 
     local OUT
-    OUT="$(eval "$CMD" 2>&1)"
-    # shellcheck disable=SC2181,SC2291
-    if [ $? -ne 0 ]; then
+    local STATUS
+    if OUT="$(eval "$CMD" 2>&1)"; then
+        return 0
+    else
+        STATUS=$?
         LOGE "Command returned a non-zero exit code\n"
         echo -e    '\033[0;31m'"$CMD"'\033[0m\n' >&2
         echo -n -e '\033[0;33m' >&2
         echo -n    "$OUT" >&2
         echo -e    '\033[0m' >&2
-        return 1
+        RECORD_ROM_BUILD_ERROR "command failed (exit $STATUS): $CMD"
+        if IS_ROM_BUILD_DEBUG; then
+            return 0
+        fi
+        return "$STATUS"
     fi
 
     return 0

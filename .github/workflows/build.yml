@@ -2,6 +2,15 @@ name: Build ProjectNERV
 
 on:
   workflow_dispatch:
+    inputs:
+      build_mode:
+        description: Select normal fail-fast mode or debug mode that collects build errors
+        type: choice
+        options:
+          - normal
+          - debug
+        default: normal
+        required: true
   pull_request:
   push:
     branches:
@@ -13,6 +22,8 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    env:
+      ROM_BUILD_MODE: ${{ github.event.inputs.build_mode || 'normal' }}
 
     strategy:
       fail-fast: false
@@ -21,7 +32,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           submodules: false
 
@@ -39,7 +50,7 @@ jobs:
 
       - name: Restore build-tool submodule cache
         id: submodule-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         continue-on-error: true
         with:
           path: .git/modules
@@ -57,7 +68,7 @@ jobs:
 
       - name: Save build-tool submodule cache
         if: success() && steps.submodule-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: .git/modules
@@ -88,7 +99,7 @@ jobs:
 
       - name: Restore apt package cache
         id: apt-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         continue-on-error: true
         with:
           path: .cache/apt/archives
@@ -116,14 +127,14 @@ jobs:
 
       - name: Save apt package cache
         if: success() && steps.apt-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: .cache/apt/archives
           key: ${{ steps.apt-cache-key.outputs.key }}
 
       - name: Set up JDK 11
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: 'temurin'
           java-version: '11'
@@ -139,7 +150,7 @@ jobs:
 
       - name: Restore compiled build tools
         id: tools-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         continue-on-error: true
         with:
           path: out/tools
@@ -155,7 +166,7 @@ jobs:
 
       - name: Save compiled build tools
         if: success() && steps.tools-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: out/tools
@@ -185,7 +196,7 @@ jobs:
 
       - name: Restore source firmware cache
         id: source-firmware-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         continue-on-error: true
         with:
           path: out/odin/${{ steps.firmware-paths.outputs.source_dir }}
@@ -194,7 +205,7 @@ jobs:
 
       - name: Restore target firmware cache
         id: target-firmware-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         continue-on-error: true
         with:
           path: out/odin/${{ steps.firmware-paths.outputs.target_dir }}
@@ -298,7 +309,7 @@ jobs:
 
       - name: Save source firmware cache
         if: success() && steps.source-firmware-cache-check.outputs.usable != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: out/odin/${{ steps.firmware-paths.outputs.source_dir }}
@@ -332,7 +343,7 @@ jobs:
 
       - name: Save target firmware cache
         if: success() && steps.target-firmware-cache-check.outputs.usable != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         continue-on-error: true
         with:
           path: out/odin/${{ steps.firmware-paths.outputs.target_dir }}
@@ -344,19 +355,30 @@ jobs:
           ./scripts/extract_fw.sh --ignore-source
 
       - name: Build ROM
+        id: build-rom
+        continue-on-error: ${{ env.ROM_BUILD_MODE == 'debug' }}
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-              ./scripts/make_rom.sh
-          else
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
               ./scripts/make_rom.sh --no-rom-zip
+          else
+              ./scripts/make_rom.sh
           fi
 
       - name: Upload installable ROM ZIP
-        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted')
-        uses: actions/upload-artifact@v4
+        if: steps.build-rom.outcome == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted'))
+        uses: actions/upload-artifact@v6
         with:
           name: MintOS-a52sxq-${{ github.run_number }}
           path: out/*.zip
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload ROM debug diagnostics
+        if: always() && env.ROM_BUILD_MODE == 'debug'
+        uses: actions/upload-artifact@v6
+        with:
+          name: MintOS-a52sxq-debug-${{ github.run_number }}
+          path: out/target/a52sxq/rom-build-errors.log
+          if-no-files-found: ignore
           retention-days: 14

@@ -47,6 +47,7 @@ ABORT()
 {
     if [ "$1" ]; then
         LOGE "$1"
+        RECORD_ROM_BUILD_ERROR "$1"
     fi
     return 1
 }
@@ -116,11 +117,13 @@ APPLY_PATCH()
 
     if ! IS_VALID_PARTITION_NAME "$PARTITION"; then
         LOGE "\"$PARTITION\" is not a valid partition name"
+        RECORD_ROM_BUILD_ERROR "invalid partition '$PARTITION' while applying patch ${PATCH//$SRC_DIR\//}"
         return 1
     fi
 
     if [ ! -f "$PATCH" ]; then
         LOGE "File not found: ${PATCH//$SRC_DIR\//}"
+        RECORD_ROM_BUILD_ERROR "patch file not found: ${PATCH//$SRC_DIR\//}"
         return 1
     fi
 
@@ -128,10 +131,50 @@ APPLY_PATCH()
         FILE="${FILE:1}"
     done
 
-    DECODE_APK "$PARTITION" "$FILE" || return 1
+    if ! DECODE_APK "$PARTITION" "$FILE"; then
+        RECORD_ROM_BUILD_ERROR "could not decode /$PARTITION/$FILE before applying ${PATCH//$SRC_DIR\//}"
+        return 1
+    fi
 
     LOG "- Applying \"$(grep "^Subject:" "$PATCH" | sed "s/.*PATCH] //; s/.*PATCH .\/.] //")\" to /$PARTITION/$FILE"
-    EVAL "LC_ALL=C git apply --directory=\"$APKTOOL_DIR/$PARTITION/${FILE//system\//}\" --verbose --unsafe-paths \"$PATCH\"" || return 1
+    local TARGET_DIR="$APKTOOL_DIR/$PARTITION/${FILE//system\//}"
+    local APPLY_OUTPUT
+    if APPLY_OUTPUT="$(LC_ALL=C git apply --directory="$TARGET_DIR" --verbose --unsafe-paths "$PATCH" 2>&1)"; then
+        return 0
+    fi
+
+    LOGE "git apply could not apply ${PATCH//$SRC_DIR\//}"
+    printf '%s\n' "$APPLY_OUTPUT" >&2
+
+    local PATCH_TMP_DIR
+    PATCH_TMP_DIR="$(mktemp -d)"
+    if [ -n "$PATCH_TMP_DIR" ] && patch --batch --forward --fuzz=2 \
+        --reject-file="$PATCH_TMP_DIR/rejects" -p1 -d "$TARGET_DIR" \
+        < "$PATCH" > "$PATCH_TMP_DIR/output" 2>&1; then
+        LOGW "Applied ${PATCH//$SRC_DIR\//} with up to two context lines of fuzz"
+        cat "$PATCH_TMP_DIR/output"
+        rm -rf "$PATCH_TMP_DIR"
+        return 0
+    fi
+
+    local PATCH_DIAGNOSTICS=""
+    if [ -n "$PATCH_TMP_DIR" ]; then
+        if [ -f "$PATCH_TMP_DIR/output" ]; then
+            cat "$PATCH_TMP_DIR/output" >&2
+            PATCH_DIAGNOSTICS="$(tail -n 80 "$PATCH_TMP_DIR/output")"
+        fi
+        if [ -s "$PATCH_TMP_DIR/rejects" ]; then
+            local REJECTED_HUNKS
+            REJECTED_HUNKS="$(head -n 120 "$PATCH_TMP_DIR/rejects")"
+            PATCH_DIAGNOSTICS+=$'\nRejected hunks (first 120 lines):\n'"$REJECTED_HUNKS"
+        fi
+        rm -rf "$PATCH_TMP_DIR"
+    fi
+    RECORD_ROM_BUILD_ERROR "patch could not be applied, including with context fuzz: ${PATCH//$SRC_DIR\//} -> /$PARTITION/$FILE${PATCH_DIAGNOSTICS:+$'\n'"$PATCH_DIAGNOSTICS"}"
+    if IS_ROM_BUILD_DEBUG; then
+        return 0
+    fi
+    return 1
 }
 
 # DECODE_APK <partition> <apk/jar>

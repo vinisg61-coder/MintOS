@@ -123,18 +123,30 @@ if $BUILD_ROM; then
 
     if [ -d "$SRC_DIR/unica/patches" ]; then
         LOG_STEP_IN true "Applying ROM patches"
-        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/patches" || RECORD_ROM_BUILD_ERROR "could not complete ROM patch processing"
+        if IS_ROM_BUILD_DEBUG; then
+            "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/patches" || RECORD_ROM_BUILD_ERROR "could not complete ROM patch processing"
+        else
+            "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/patches" || { [ ! -f "$ROM_BUILD_ERROR_LOG" ] || cat "$ROM_BUILD_ERROR_LOG" >&2; exit 1; }
+        fi
         LOG_STEP_OUT
     fi
     if [ -d "$SRC_DIR/target/$TARGET_CODENAME/patches" ]; then
         LOG_STEP_IN true "Applying device patches"
-        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/target/$TARGET_CODENAME/patches" || RECORD_ROM_BUILD_ERROR "could not complete device patch processing"
+        if IS_ROM_BUILD_DEBUG; then
+            "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/target/$TARGET_CODENAME/patches" || RECORD_ROM_BUILD_ERROR "could not complete device patch processing"
+        else
+            "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/target/$TARGET_CODENAME/patches" || { [ ! -f "$ROM_BUILD_ERROR_LOG" ] || cat "$ROM_BUILD_ERROR_LOG" >&2; exit 1; }
+        fi
         LOG_STEP_OUT
     fi
 
     if [ -d "$SRC_DIR/unica/mods" ]; then
         LOG_STEP_IN true "Applying ROM mods"
-        "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/mods" || RECORD_ROM_BUILD_ERROR "could not complete ROM mod processing"
+        if IS_ROM_BUILD_DEBUG; then
+            "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/mods" || RECORD_ROM_BUILD_ERROR "could not complete ROM mod processing"
+        else
+            "$SRC_DIR/scripts/internal/apply_modules.sh" "$SRC_DIR/unica/mods" || { [ ! -f "$ROM_BUILD_ERROR_LOG" ] || cat "$ROM_BUILD_ERROR_LOG" >&2; exit 1; }
+        fi
         LOG_STEP_OUT
     fi
 
@@ -155,14 +167,27 @@ if $BUILD_ROM; then
             APK_BUILD_FILES+=("/$f")
         done < <(find "$APKTOOL_DIR" -type d \( -name "*.apk" -o -name "*.jar" \))
 
-        for i in "${!APK_BUILD_PIDS[@]}"; do
-            if wait "${APK_BUILD_PIDS[$i]}"; then
-                :
-            else
-                BUILD_STATUS=$?
-                RECORD_ROM_BUILD_ERROR "APK/JAR build failed for ${APK_BUILD_FILES[$i]} (exit $BUILD_STATUS)"
-            fi
-        done
+        if IS_ROM_BUILD_DEBUG; then
+            for i in "${!APK_BUILD_PIDS[@]}"; do
+                if wait "${APK_BUILD_PIDS[$i]}"; then
+                    :
+                else
+                    BUILD_STATUS=$?
+                    RECORD_ROM_BUILD_ERROR "APK/JAR build failed for ${APK_BUILD_FILES[$i]} (exit $BUILD_STATUS)"
+                fi
+            done
+        else
+            for i in "${!APK_BUILD_PIDS[@]}"; do
+                if wait "${APK_BUILD_PIDS[$i]}"; then
+                    :
+                else
+                    BUILD_STATUS=$?
+                    LOGE "APK/JAR build failed for ${APK_BUILD_FILES[$i]} (exit $BUILD_STATUS)"
+                    [ ! -f "$ROM_BUILD_ERROR_LOG" ] || cat "$ROM_BUILD_ERROR_LOG" >&2
+                    exit "$BUILD_STATUS"
+                fi
+            done
+        fi
 
         LOG_STEP_OUT
     fi
@@ -183,7 +208,16 @@ fi
 
 if $BUILD_ZIP; then
     LOG_STEP_IN true "Creating zip"
-    "$SRC_DIR/scripts/internal/build_flashable_zip.sh" || exit 1
+    if IS_ROM_BUILD_DEBUG; then
+        "$SRC_DIR/scripts/internal/build_flashable_zip.sh" || RECORD_ROM_BUILD_ERROR "flashable ZIP build returned an error"
+        if [ -s "$ROM_BUILD_ERROR_LOG" ]; then
+            LOGE "ROM debug build completed with issues:"
+            cat "$ROM_BUILD_ERROR_LOG" >&2
+            exit 1
+        fi
+    else
+        "$SRC_DIR/scripts/internal/build_flashable_zip.sh" || exit 1
+    fi
     LOG_STEP_OUT
 fi
 

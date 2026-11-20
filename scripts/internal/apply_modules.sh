@@ -16,14 +16,36 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-set +e
-set -E
+if [[ "${ROM_BUILD_MODE:-normal}" == "debug" ]]; then
+    set +e
+    set -E
+else
+    set -e
+fi
 
 #[
 source "$SRC_DIR/scripts/utils/module_utils.sh" || exit 1
 
-CURRENT_MODULE=""
-trap 'status=$?; failed_command=$BASH_COMMAND; RECORD_ROM_BUILD_ERROR "module ${CURRENT_MODULE:-unknown}: command failed (exit $status): $failed_command"' ERR
+if IS_ROM_BUILD_DEBUG; then
+    CURRENT_MODULE=""
+    trap 'status=$?; failed_command=$BASH_COMMAND; RECORD_ROM_BUILD_ERROR "module ${CURRENT_MODULE:-unknown}: command failed (exit $status): $failed_command"' ERR
+fi
+
+ADD_MODULE_TREE()
+{
+    local MODNAME="$1"
+    shift
+
+    if ADD_TO_WORK_DIR "$@"; then
+        return 0
+    fi
+
+    if IS_ROM_BUILD_DEBUG; then
+        RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed to add '$3' from '$1' to partition '$2'"
+        return 0
+    fi
+    return 1
+}
 
 APPLY_MODULE()
 {
@@ -33,6 +55,7 @@ APPLY_MODULE()
 
     if [ ! -d "$MODPATH" ]; then
         LOGE "Folder not found: ${MODPATH//$SRC_DIR\//}"
+        RECORD_ROM_BUILD_ERROR "module folder not found: ${MODPATH//$SRC_DIR\//}"
         return 1
     fi
 
@@ -42,6 +65,7 @@ APPLY_MODULE()
 
     if [ ! -f "$MODPATH/module.prop" ]; then
         LOGE "File not found: ${MODPATH//$SRC_DIR\//}/module.prop"
+        RECORD_ROM_BUILD_ERROR "module metadata not found: ${MODPATH//$SRC_DIR\//}/module.prop"
         return 1
     elif [ -f "$MODPATH/disable" ]; then
         return 0
@@ -53,22 +77,40 @@ APPLY_MODULE()
     LOG_STEP_IN "- Processing \"$MODNAME\" by @$MODAUTH"
 
     if ! grep -q "^SKIPUNZIP=1$" "$MODPATH/customize.sh" 2> /dev/null; then
-        [ ! -d "$MODPATH/odm" ] || ADD_TO_WORK_DIR "$MODPATH" "odm" "." 0 0 755 "u:object_r:vendor_file:s0" || RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed to copy odm contents"
-        [ ! -d "$MODPATH/product" ] || ADD_TO_WORK_DIR "$MODPATH" "product" "." 0 0 755 "u:object_r:system_file:s0" || RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed to copy product contents"
-        [ ! -d "$MODPATH/system" ] || ADD_TO_WORK_DIR "$MODPATH" "system" "." 0 0 755 "u:object_r:system_file:s0" || RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed to copy system contents"
-        [ ! -d "$MODPATH/system_ext" ] || ADD_TO_WORK_DIR "$MODPATH" "system_ext" "." 0 0 755 "u:object_r:system_file:s0" || RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed to copy system_ext contents"
-        [ ! -d "$MODPATH/vendor" ] || ADD_TO_WORK_DIR "$MODPATH" "vendor" "." 0 2000 755 "u:object_r:vendor_file:s0" || RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed to copy vendor contents"
+        if [ -d "$MODPATH/odm" ]; then
+            ADD_MODULE_TREE "$MODNAME" "$MODPATH" "odm" "." 0 0 755 "u:object_r:vendor_file:s0"
+        fi
+        if [ -d "$MODPATH/product" ]; then
+            ADD_MODULE_TREE "$MODNAME" "$MODPATH" "product" "." 0 0 755 "u:object_r:system_file:s0"
+        fi
+        if [ -d "$MODPATH/system" ]; then
+            ADD_MODULE_TREE "$MODNAME" "$MODPATH" "system" "." 0 0 755 "u:object_r:system_file:s0"
+        fi
+        if [ -d "$MODPATH/system_ext" ]; then
+            ADD_MODULE_TREE "$MODNAME" "$MODPATH" "system_ext" "." 0 0 755 "u:object_r:system_file:s0"
+        fi
+        if [ -d "$MODPATH/vendor" ]; then
+            ADD_MODULE_TREE "$MODNAME" "$MODPATH" "vendor" "." 0 2000 755 "u:object_r:vendor_file:s0"
+        fi
     fi
 
-    if ! READ_AND_APPLY_PROPS "$MODPATH"; then
-        RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed while applying properties"
+    if IS_ROM_BUILD_DEBUG; then
+        if ! READ_AND_APPLY_PROPS "$MODPATH"; then
+            RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed while applying properties"
+        fi
+    else
+        READ_AND_APPLY_PROPS "$MODPATH"
     fi
 
     if [ "$TARGET_SINGLE_SYSTEM_IMAGE" != "self" ]; then
         if [ -d "$MODPATH/smali" ]; then
             while IFS= read -r f; do
-                if ! APPLY_SMALI_PATCHES "$MODPATH/smali" "$f"; then
-                    RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed while processing patches for $f"
+                if IS_ROM_BUILD_DEBUG; then
+                    if ! APPLY_SMALI_PATCHES "$MODPATH/smali" "$f"; then
+                        RECORD_ROM_BUILD_ERROR "module '$MODNAME': failed while processing patches for $f"
+                    fi
+                else
+                    APPLY_SMALI_PATCHES "$MODPATH/smali" "$f"
                 fi
             done < <(find "$MODPATH/smali" -type d \( -name "*.apk" -o -name "*.jar" \) | sed "s|$MODPATH/smali/||")
         fi
@@ -88,24 +130,22 @@ RUN_MODULE_CUSTOMIZE()
     local CUSTOMIZE_SCRIPT="$1"
     local CUSTOMIZE_MODULE="$2"
     local CUSTOMIZE_STATUS
-    local RESTORE_ERREXIT=false
-
-    [[ "$-" == *e* ]] && RESTORE_ERREXIT=true
-    set +e
-    (
-        set +e
-        set -E
-        export ROM_BUILD_CURRENT_MODULE="$CUSTOMIZE_MODULE"
-        trap 'status=$?; failed_command=$BASH_COMMAND; RECORD_ROM_BUILD_ERROR "module $ROM_BUILD_CURRENT_MODULE customize.sh command failed (exit $status): $failed_command"' ERR
-        . "$CUSTOMIZE_SCRIPT"
-    )
-    CUSTOMIZE_STATUS=$?
-    $RESTORE_ERREXIT && set -e
-
-    if [ "$CUSTOMIZE_STATUS" -ne 0 ]; then
-        RECORD_ROM_BUILD_ERROR "module '$CUSTOMIZE_MODULE': customize.sh exited with status $CUSTOMIZE_STATUS"
+    if IS_ROM_BUILD_DEBUG; then
+        (
+            set +e
+            set -E
+            export ROM_BUILD_CURRENT_MODULE="$CUSTOMIZE_MODULE"
+            trap 'status=$?; failed_command=$BASH_COMMAND; RECORD_ROM_BUILD_ERROR "module $ROM_BUILD_CURRENT_MODULE customize.sh command failed (exit $status): $failed_command"' ERR
+            . "$CUSTOMIZE_SCRIPT"
+        )
+        CUSTOMIZE_STATUS=$?
+        if [ "$CUSTOMIZE_STATUS" -ne 0 ]; then
+            RECORD_ROM_BUILD_ERROR "module '$CUSTOMIZE_MODULE': customize.sh exited with status $CUSTOMIZE_STATUS"
+        fi
+        return 0
     fi
-    return 0
+
+    . "$CUSTOMIZE_SCRIPT"
 }
 
 APPLY_SMALI_PATCHES()
@@ -118,16 +158,23 @@ APPLY_SMALI_PATCHES()
 
     if ! IS_VALID_PARTITION_NAME "$PARTITION"; then
         LOGE "\"$PARTITION\" is not a valid partition name"
-        RECORD_ROM_BUILD_ERROR "invalid partition '$PARTITION' while applying patches for $TARGET"
-        return 0
+        if IS_ROM_BUILD_DEBUG; then
+            RECORD_ROM_BUILD_ERROR "invalid partition '$PARTITION' while applying patches for $TARGET"
+            return 0
+        fi
+        return 1
     fi
 
     while IFS= read -r p; do
         local FILE="$TARGET"
         [[ "$PARTITION" != "system" ]] && FILE="$(cut -d "/" -f 2- -s <<< "$FILE")"
 
-        if ! APPLY_PATCH "$PARTITION" "$FILE" "$p"; then
-            RECORD_ROM_BUILD_ERROR "patch failed: ${p//$SRC_DIR\//} -> /$PARTITION/$FILE"
+        if IS_ROM_BUILD_DEBUG; then
+            if ! APPLY_PATCH "$PARTITION" "$FILE" "$p"; then
+                RECORD_ROM_BUILD_ERROR "patch failed: ${p//$SRC_DIR\//} -> /$PARTITION/$FILE"
+            fi
+        else
+            APPLY_PATCH "$PARTITION" "$FILE" "$p"
         fi
     done < <(find "$PATCHES_PATH/$TARGET" -type f -name "*.patch" | sort -n)
 
@@ -149,17 +196,29 @@ READ_AND_APPLY_PROPS()
 
             if grep -q -F "=" <<< "$l"; then
                 if [ ! "$(cut -d "=" -f 2- -s <<< "$l")" ]; then
-                    if ! SET_PROP "$PARTITION" "$(cut -d "=" -f 1 -s <<< "$l")" --delete; then
-                        RECORD_ROM_BUILD_ERROR "failed to delete property in ${f//$SRC_DIR\//}: $l"
+                    if IS_ROM_BUILD_DEBUG; then
+                        if ! SET_PROP "$PARTITION" "$(cut -d "=" -f 1 -s <<< "$l")" --delete; then
+                            RECORD_ROM_BUILD_ERROR "failed to delete property in ${f//$SRC_DIR\//}: $l"
+                        fi
+                    else
+                        SET_PROP "$PARTITION" "$(cut -d "=" -f 1 -s <<< "$l")" --delete
                     fi
                 else
-                    if ! SET_PROP "$PARTITION" "$(cut -d "=" -f 1 -s <<< "$l")" "$(cut -d "=" -f 2- -s <<< "$l")"; then
-                        RECORD_ROM_BUILD_ERROR "failed to set property in ${f//$SRC_DIR\//}: $l"
+                    if IS_ROM_BUILD_DEBUG; then
+                        if ! SET_PROP "$PARTITION" "$(cut -d "=" -f 1 -s <<< "$l")" "$(cut -d "=" -f 2- -s <<< "$l")"; then
+                            RECORD_ROM_BUILD_ERROR "failed to set property in ${f//$SRC_DIR\//}: $l"
+                        fi
+                    else
+                        SET_PROP "$PARTITION" "$(cut -d "=" -f 1 -s <<< "$l")" "$(cut -d "=" -f 2- -s <<< "$l")"
                     fi
                 fi
             else
                 LOGE "Malformed string in $f: \"$l\""
-                RECORD_ROM_BUILD_ERROR "malformed property in ${f//$SRC_DIR\//}: $l"
+                if IS_ROM_BUILD_DEBUG; then
+                    RECORD_ROM_BUILD_ERROR "malformed property in ${f//$SRC_DIR\//}: $l"
+                else
+                    return 1
+                fi
             fi
         done < "$f"
     done < <(find "$MODPATH" -maxdepth 1 -type f -name "*.prop")
@@ -178,10 +237,14 @@ fi
 
 while IFS= read -r f; do
     CURRENT_MODULE="${f//$SRC_DIR\//}"
-    APPLY_MODULE "$f"
-    MODULE_STATUS=$?
-    if [ "$MODULE_STATUS" -ne 0 ]; then
-        RECORD_ROM_BUILD_ERROR "module failed: ${f//$SRC_DIR\//}"
+    if IS_ROM_BUILD_DEBUG; then
+        APPLY_MODULE "$f"
+        MODULE_STATUS=$?
+        if [ "$MODULE_STATUS" -ne 0 ]; then
+            RECORD_ROM_BUILD_ERROR "module failed: ${f//$SRC_DIR\//}"
+        fi
+    else
+        APPLY_MODULE "$f"
     fi
 done < <(find "$1" -mindepth 1 -maxdepth 1 -type d | sort)
 
