@@ -8,6 +8,11 @@ ADD_TO_WORK_DIR "$TARGET_FIRMWARE" "system" "system/etc/permissions/com.sec.feat
 ADD_TO_WORK_DIR "$TARGET_FIRMWARE" "system" "system/etc/permissions/com.sec.feature.sensorhub_level40.xml" 0 0 644 "u:object_r:system_file:s0"
 LOG_STEP_OUT
 
+LOG_STEP_IN "- Restoring QCC file-agent dependencies"
+ADD_TO_WORK_DIR "$SOURCE_FIRMWARE" "system_ext" "lib/libqcc_file_agent_sys.so" 0 0 644 "u:object_r:system_file:s0"
+ADD_TO_WORK_DIR "$SOURCE_FIRMWARE" "system_ext" "lib64/libqcc_file_agent_sys.so" 0 0 644 "u:object_r:system_file:s0"
+LOG_STEP_OUT
+
 LOG_STEP_IN "- Adding a73xqxx WFD blobs"
 DELETE_FROM_WORK_DIR "system" "system/lib64/libhdcp_client_aidl.so"
 DELETE_FROM_WORK_DIR "system" "system/lib64/vendor.samsung.hardware.security.hdcp.wifidisplay-V2-ndk.so"
@@ -19,11 +24,6 @@ ADD_TO_WORK_DIR "a73xqxx" "system" "system/lib64/libremotedisplay_wfd.so" 0 0 64
 ADD_TO_WORK_DIR "a73xqxx" "system" "system/lib64/libremotedisplayservice.so" 0 0 644 "u:object_r:system_lib_file:s0"
 ADD_TO_WORK_DIR "a73xqxx" "system" "system/lib64/libsecuibc.so" 0 0 644 "u:object_r:system_lib_file:s0"
 ADD_TO_WORK_DIR "a73xqxx" "system" "system/lib64/libstagefright_hdcp.so" 0 0 644 "u:object_r:system_lib_file:s0"
-LOG_STEP_OUT
-
-LOG_STEP_IN "- Adding a73xqxx libhwui"
-ADD_TO_WORK_DIR "a73xqxx" "system" "system/lib/libhwui.so"
-ADD_TO_WORK_DIR "a73xqxx" "system" "system/lib64/libhwui.so"
 LOG_STEP_OUT
 
 LOG_STEP_IN "- Adding a73xqxx keymaster libs"
