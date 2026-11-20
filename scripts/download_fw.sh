@@ -129,8 +129,13 @@ for i in "${FIRMWARES[@]}"; do
 
     LATEST_FIRMWARE="$(GET_LATEST_FIRMWARE "$MODEL" "$CSC")"
     if [ ! "$LATEST_FIRMWARE" ]; then
-        LOGE "Latest available firmware could not be fetched"
-        exit 1
+        if [ -f "$ODIN_DIR/${MODEL}_${CSC}/.downloaded" ]; then
+            LATEST_FIRMWARE="$(cat "$ODIN_DIR/${MODEL}_${CSC}/.downloaded")"
+            LOGW "Latest firmware lookup failed; using cached firmware $LATEST_FIRMWARE"
+        else
+            LOGE "Latest available firmware could not be fetched and no cached firmware is available"
+            exit 1
+        fi
     fi
 
     LOG_STEP_IN "- Processing $MODEL firmware with $CSC CSC"

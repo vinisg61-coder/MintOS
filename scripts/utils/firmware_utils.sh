@@ -116,8 +116,30 @@ GET_LATEST_FIRMWARE()
     _CHECK_NON_EMPTY_PARAM "MODEL" "$1" || return 1
     _CHECK_NON_EMPTY_PARAM "CSC" "$2" || return 1
 
-    curl -s --retry 5 --retry-delay 5 "https://fota-cloud-dn.ospserver.net/firmware/$2/$1/version.xml" \
-        | perl -nE 'say $1 if /<latest[^>]*>(.*?)<\/latest>/'
+    local MODEL="$1"
+    local CSC="$2"
+    local VERSION_XML
+    local LATEST
+
+    VERSION_XML="$(curl --fail --location --silent \
+        --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \
+        --connect-timeout 20 --max-time 90 \
+        "https://fota-cloud-dn.ospserver.net/firmware/$CSC/$MODEL/version.xml" 2> /dev/null)" || VERSION_XML=""
+    LATEST="$(perl -nE 'say $1 if /<latest[^>]*>(.*?)<\/latest>/' <<< "$VERSION_XML")"
+    if [ -n "$LATEST" ]; then
+        echo "$LATEST"
+        return 0
+    fi
+
+    # FUS can still resolve the version when Samsung's FOTA XML endpoint is
+    # temporarily unavailable. The tool is built into the workflow venv.
+    if [ -x "$TOOLS_DIR/venv/bin/samloader" ]; then
+        if "$TOOLS_DIR/venv/bin/samloader" -m "$MODEL" -r "$CSC" checkupdate 2> /dev/null; then
+            return 0
+        fi
+    fi
+
+    return 0
 }
 
 # PARSE_FIRMWARE_STRING <string>

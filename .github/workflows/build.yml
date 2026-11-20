@@ -110,6 +110,7 @@ jobs:
             -o APT::Keep-Downloaded-Packages=true \
             "${apt_packages[@]}"
           sudo chmod 755 "$apt_archives/partial"
+          sudo rm -f "$apt_archives/lock"
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           echo -n "${{ secrets.PLATFORM_KEY_PK8 }}" | base64 --decode > security/platform.pk8
@@ -161,79 +162,167 @@ jobs:
           path: out/tools
           key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
-      - name: Resolve current firmware cache keys
-        id: firmware-refs
+      - name: Calculate firmware cache paths
+        id: firmware-paths
         run: |
           source ./buildenv.sh ${{ matrix.target }}
-          source ./scripts/utils/firmware_utils.sh
 
-          write_firmware_key() {
-            local prefix="$1"
+          write_firmware_path() {
+            local kind="$1"
             local firmware="$2"
-            local model csc latest key
+            local model csc dir cache_prefix
 
             model="$(cut -d '/' -f 1 <<< "$firmware")"
             csc="$(cut -d '/' -f 2 <<< "$firmware")"
-            latest="$(GET_LATEST_FIRMWARE "$model" "$csc")"
-            if [ -z "$latest" ]; then
-              echo "Unable to resolve latest firmware for $model/$csc" >&2
-              exit 1
-            fi
-
-            key="$(printf '%s' "$latest" | sha256sum | cut -c1-16)"
-            echo "${prefix}_dir=${model}_${csc}" >> "$GITHUB_OUTPUT"
-            echo "${prefix}_key=${key}" >> "$GITHUB_OUTPUT"
+            dir="${model}_${csc}"
+            cache_prefix="firmware-${RUNNER_OS}-${kind}-${dir}-"
+            echo "${kind}_dir=${dir}" >> "$GITHUB_OUTPUT"
+            echo "${kind}_lookup_key=${cache_prefix}lookup" >> "$GITHUB_OUTPUT"
+            echo "${kind}_cache_prefix=${cache_prefix}" >> "$GITHUB_OUTPUT"
           }
 
-          write_firmware_key source "$SOURCE_FIRMWARE"
-          write_firmware_key target "$TARGET_FIRMWARE"
+          write_firmware_path source "$SOURCE_FIRMWARE"
+          write_firmware_path target "$TARGET_FIRMWARE"
 
       - name: Restore source firmware cache
         id: source-firmware-cache
         uses: actions/cache/restore@v4
         continue-on-error: true
         with:
-          path: out/odin/${{ steps.firmware-refs.outputs.source_dir }}
-          key: firmware-${{ runner.os }}-source-${{ steps.firmware-refs.outputs.source_dir }}-${{ steps.firmware-refs.outputs.source_key }}
-
-      - name: Download source firmware
-        run: |
-          source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/download_fw.sh --ignore-target
-
-      - name: Save source firmware cache
-        if: success() && steps.source-firmware-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        continue-on-error: true
-        with:
-          path: out/odin/${{ steps.firmware-refs.outputs.source_dir }}
-          key: firmware-${{ runner.os }}-source-${{ steps.firmware-refs.outputs.source_dir }}-${{ steps.firmware-refs.outputs.source_key }}
-
-      - name: Extract source firmware
-        run: |
-          source ./buildenv.sh ${{ matrix.target }}
-          ./scripts/extract_fw.sh --ignore-target
+          path: out/odin/${{ steps.firmware-paths.outputs.source_dir }}
+          key: ${{ steps.firmware-paths.outputs.source_lookup_key }}
+          restore-keys: ${{ steps.firmware-paths.outputs.source_cache_prefix }}
 
       - name: Restore target firmware cache
         id: target-firmware-cache
         uses: actions/cache/restore@v4
         continue-on-error: true
         with:
-          path: out/odin/${{ steps.firmware-refs.outputs.target_dir }}
-          key: firmware-${{ runner.os }}-target-${{ steps.firmware-refs.outputs.target_dir }}-${{ steps.firmware-refs.outputs.target_key }}
+          path: out/odin/${{ steps.firmware-paths.outputs.target_dir }}
+          key: ${{ steps.firmware-paths.outputs.target_lookup_key }}
+          restore-keys: ${{ steps.firmware-paths.outputs.target_cache_prefix }}
+
+      - name: Resolve latest firmware versions
+        id: firmware-refs
+        run: |
+          source ./buildenv.sh ${{ matrix.target }}
+          source ./scripts/utils/firmware_utils.sh
+
+          write_firmware_version() {
+            local kind="$1"
+            local firmware="$2"
+            local model csc latest
+
+            model="$(cut -d '/' -f 1 <<< "$firmware")"
+            csc="$(cut -d '/' -f 2 <<< "$firmware")"
+            latest="$(GET_LATEST_FIRMWARE "$model" "$csc" || true)"
+            echo "${kind}_latest=${latest}" >> "$GITHUB_OUTPUT"
+            if [ -z "$latest" ]; then
+              echo "::warning::Latest firmware lookup failed for $model/$csc; a restored cache will be used if available."
+            fi
+          }
+
+          write_firmware_version source "$SOURCE_FIRMWARE"
+          write_firmware_version target "$TARGET_FIRMWARE"
+
+      - name: Check restored source firmware cache
+        id: source-firmware-cache-check
+        env:
+          FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.source_dir }}
+          EXPECTED_FIRMWARE: ${{ steps.firmware-refs.outputs.source_latest }}
+        run: |
+          marker="out/odin/$FIRMWARE_DIR/.downloaded"
+          if [[ -s "$marker" ]]; then
+            cached_firmware="$(cat "$marker")"
+            if [[ -z "$EXPECTED_FIRMWARE" || "$cached_firmware" == "$EXPECTED_FIRMWARE" ]]; then
+              echo "usable=true" >> "$GITHUB_OUTPUT"
+              echo "Using cached source firmware $cached_firmware"
+              exit 0
+            fi
+            echo "Cached source firmware $cached_firmware is stale; expected $EXPECTED_FIRMWARE"
+          fi
+          echo "usable=false" >> "$GITHUB_OUTPUT"
+
+      - name: Check restored target firmware cache
+        id: target-firmware-cache-check
+        env:
+          FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.target_dir }}
+          EXPECTED_FIRMWARE: ${{ steps.firmware-refs.outputs.target_latest }}
+        run: |
+          marker="out/odin/$FIRMWARE_DIR/.downloaded"
+          if [[ -s "$marker" ]]; then
+            cached_firmware="$(cat "$marker")"
+            if [[ -z "$EXPECTED_FIRMWARE" || "$cached_firmware" == "$EXPECTED_FIRMWARE" ]]; then
+              echo "usable=true" >> "$GITHUB_OUTPUT"
+              echo "Using cached target firmware $cached_firmware"
+              exit 0
+            fi
+            echo "Cached target firmware $cached_firmware is stale; expected $EXPECTED_FIRMWARE"
+          fi
+          echo "usable=false" >> "$GITHUB_OUTPUT"
+
+      - name: Download source firmware
+        if: steps.source-firmware-cache-check.outputs.usable != 'true'
+        run: |
+          source ./buildenv.sh ${{ matrix.target }}
+          ./scripts/download_fw.sh --ignore-target
+
+      - name: Calculate source firmware cache key
+        id: source-firmware-key
+        if: steps.source-firmware-cache-check.outputs.usable != 'true'
+        env:
+          FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.source_dir }}
+        run: |
+          marker="out/odin/$FIRMWARE_DIR/.downloaded"
+          if [[ ! -s "$marker" ]]; then
+            echo "Downloaded source firmware marker is missing: $marker" >&2
+            exit 1
+          fi
+          firmware="$(cat "$marker")"
+          version_hash="$(printf '%s' "$firmware" | sha256sum | cut -c1-16)"
+          echo "key=firmware-${RUNNER_OS}-source-${FIRMWARE_DIR}-${version_hash}" >> "$GITHUB_OUTPUT"
+
+      - name: Save source firmware cache
+        if: success() && steps.source-firmware-cache-check.outputs.usable != 'true'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: out/odin/${{ steps.firmware-paths.outputs.source_dir }}
+          key: ${{ steps.source-firmware-key.outputs.key }}
+
+      - name: Extract source firmware
+        run: |
+          source ./buildenv.sh ${{ matrix.target }}
+          ./scripts/extract_fw.sh --ignore-target
 
       - name: Download target firmware
+        if: steps.target-firmware-cache-check.outputs.usable != 'true'
         run: |
           source ./buildenv.sh ${{ matrix.target }}
           ./scripts/download_fw.sh --ignore-source
 
+      - name: Calculate target firmware cache key
+        id: target-firmware-key
+        if: steps.target-firmware-cache-check.outputs.usable != 'true'
+        env:
+          FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.target_dir }}
+        run: |
+          marker="out/odin/$FIRMWARE_DIR/.downloaded"
+          if [[ ! -s "$marker" ]]; then
+            echo "Downloaded target firmware marker is missing: $marker" >&2
+            exit 1
+          fi
+          firmware="$(cat "$marker")"
+          version_hash="$(printf '%s' "$firmware" | sha256sum | cut -c1-16)"
+          echo "key=firmware-${RUNNER_OS}-target-${FIRMWARE_DIR}-${version_hash}" >> "$GITHUB_OUTPUT"
+
       - name: Save target firmware cache
-        if: success() && steps.target-firmware-cache.outputs.cache-hit != 'true'
+        if: success() && steps.target-firmware-cache-check.outputs.usable != 'true'
         uses: actions/cache/save@v4
         continue-on-error: true
         with:
-          path: out/odin/${{ steps.firmware-refs.outputs.target_dir }}
-          key: firmware-${{ runner.os }}-target-${{ steps.firmware-refs.outputs.target_dir }}-${{ steps.firmware-refs.outputs.target_key }}
+          path: out/odin/${{ steps.firmware-paths.outputs.target_dir }}
+          key: ${{ steps.target-firmware-key.outputs.key }}
 
       - name: Extract target firmware
         run: |
