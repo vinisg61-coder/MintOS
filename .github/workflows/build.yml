@@ -6,10 +6,13 @@ on:
   push:
     branches:
       - 'paradigm'
+      - 'a52sxq-mintos-adapted'
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
 
     strategy:
       fail-fast: false
@@ -112,9 +115,11 @@ jobs:
         continue-on-error: true
         with:
           path: out/tools
-          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
+          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
       - name: Build dependencies
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           source ./buildenv.sh ${{ matrix.target }}
           ./scripts/build_dependencies.sh
@@ -125,7 +130,7 @@ jobs:
         continue-on-error: true
         with:
           path: out/tools
-          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
+          key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
       - name: Resolve current firmware cache keys
         id: firmware-refs
@@ -216,7 +221,7 @@ jobs:
           fi
 
       - name: Upload installable ROM ZIP
-        if: github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted')
         uses: actions/upload-artifact@v4
         with:
           name: MintOS-a52sxq-${{ github.run_number }}

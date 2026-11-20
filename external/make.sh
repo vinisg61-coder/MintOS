@@ -269,16 +269,14 @@ if $MAGISKBOOT; then
         amd64|x86_64)
             ARCH="x86_64"
             ;;
+        *)
+            echo "Unsupported architecture for magiskboot: $(uname -m)" >&2
+            exit 1
+            ;;
     esac
     MAGISKBOOT_TMP="$(mktemp -d)"
     MAGISKBOOT_CMDS=(
-    "curl -L -s -o magisk.apk \"\$(
-        curl -s https://api.github.com/repos/topjohnwu/Magisk/releases/latest |
-        jq -r '.assets[] | select(.name | test(\"^Magisk-v[0-9.]+\\\\.apk$\")) | .browser_download_url'
-    )\""
-    "unzip -q -j magisk.apk lib/$ARCH/libmagiskboot.so"
-    "mv libmagiskboot.so \"$TOOLS_DIR/bin/magiskboot\""
-    "chmod +x \"$TOOLS_DIR/bin/magiskboot\""
+        "bash \"$SRC_DIR/scripts/download_magiskboot.sh\" \"$TOOLS_DIR/bin/magiskboot\" \"$ARCH\""
     )
 
     BUILD "magiskboot" "$MAGISKBOOT_TMP" "${MAGISKBOOT_CMDS[@]}"
