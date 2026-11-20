@@ -146,6 +146,7 @@ jobs:
           key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/download_samloader.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
       - name: Build dependencies
+        if: steps.tools-cache.outputs.cache-hit != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
