@@ -228,7 +228,16 @@ fi
 if $APKTOOL; then
     APKTOOL_CMDS=(
         "git reset --hard"
-        "./gradlew build shadowJar"
+        "for attempt in 1 2 3; do
+            if [ \"\$attempt\" -eq 1 ]; then
+                ./gradlew --init-script \"\$SRC_DIR/scripts/gradle-mirror.init.gradle\" build shadowJar && break
+            else
+                ./gradlew --refresh-dependencies --init-script \"\$SRC_DIR/scripts/gradle-mirror.init.gradle\" build shadowJar && break
+            fi
+            if [ \"\$attempt\" -eq 3 ]; then exit 1; fi
+            echo \"Gradle artifact resolution failed; retrying (\$attempt/3)...\"
+            sleep \"\$((attempt * 20))\"
+        done"
         "cp -a \"scripts/linux/apktool\" \"$TOOLS_DIR/bin\""
         "cp -a \"brut.apktool/apktool-cli/build/libs/apktool-cli.jar\" \"$TOOLS_DIR/bin/apktool.jar\""
     )
