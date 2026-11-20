@@ -148,13 +148,18 @@ APPLY_PATCH()
 
     local PATCH_TMP_DIR
     PATCH_TMP_DIR="$(mktemp -d)"
-    if [ -n "$PATCH_TMP_DIR" ] && patch --batch --forward --fuzz=2 \
-        --reject-file="$PATCH_TMP_DIR/rejects" -p1 -d "$TARGET_DIR" \
-        < "$PATCH" > "$PATCH_TMP_DIR/output" 2>&1; then
-        LOGW "Applied ${PATCH//$SRC_DIR\//} with up to two context lines of fuzz"
-        cat "$PATCH_TMP_DIR/output"
-        rm -rf "$PATCH_TMP_DIR"
-        return 0
+    if [ -n "$PATCH_TMP_DIR" ]; then
+        local PATCH_ARGS=(--batch --forward --fuzz=2 --reject-file="$PATCH_TMP_DIR/rejects" -p1 -d "$TARGET_DIR")
+        if patch --dry-run "${PATCH_ARGS[@]}" < "$PATCH" > "$PATCH_TMP_DIR/output" 2>&1; then
+            rm -f "$PATCH_TMP_DIR/rejects"
+            if patch "${PATCH_ARGS[@]}" < "$PATCH" > "$PATCH_TMP_DIR/apply-output" 2>&1; then
+                LOGW "Applied ${PATCH//$SRC_DIR\//} with up to two context lines of fuzz"
+                cat "$PATCH_TMP_DIR/apply-output"
+                rm -rf "$PATCH_TMP_DIR"
+                return 0
+            fi
+            cat "$PATCH_TMP_DIR/apply-output" >> "$PATCH_TMP_DIR/output"
+        fi
     fi
 
     local PATCH_DIAGNOSTICS=""
