@@ -109,6 +109,38 @@ FILE_EXISTS_IN_TAR()
     return $?
 }
 
+# GET_CONFIGURED_FIRMWARE_VERSION <model> <csc>
+# Returns a firmware version explicitly pinned in the source/target config.
+GET_CONFIGURED_FIRMWARE_VERSION()
+{
+    _CHECK_NON_EMPTY_PARAM "MODEL" "$1" || return 1
+    _CHECK_NON_EMPTY_PARAM "CSC" "$2" || return 1
+
+    local MODEL="$1"
+    local CSC="$2"
+    local CONFIG_FIRMWARE CONFIG_MODEL CONFIG_CSC
+
+    CONFIG_FIRMWARE="${SOURCE_FIRMWARE:-}"
+    CONFIG_MODEL="${CONFIG_FIRMWARE%%/*}"
+    CONFIG_CSC="${CONFIG_FIRMWARE#*/}"
+    CONFIG_CSC="${CONFIG_CSC%%/*}"
+    if [[ -n "${SOURCE_FIRMWARE_VERSION:-}" && "$MODEL" == "$CONFIG_MODEL" && "$CSC" == "$CONFIG_CSC" ]]; then
+        echo "$SOURCE_FIRMWARE_VERSION"
+        return 0
+    fi
+
+    CONFIG_FIRMWARE="${TARGET_FIRMWARE:-}"
+    CONFIG_MODEL="${CONFIG_FIRMWARE%%/*}"
+    CONFIG_CSC="${CONFIG_FIRMWARE#*/}"
+    CONFIG_CSC="${CONFIG_CSC%%/*}"
+    if [[ -n "${TARGET_FIRMWARE_VERSION:-}" && "$MODEL" == "$CONFIG_MODEL" && "$CSC" == "$CONFIG_CSC" ]]; then
+        echo "$TARGET_FIRMWARE_VERSION"
+        return 0
+    fi
+
+    return 1
+}
+
 # GET_LATEST_FIRMWARE <model> <csc>
 # Returns the latest available firmware for the supplied model & CSC in the following format: PDA/CSC/MODEM
 GET_LATEST_FIRMWARE()
@@ -118,8 +150,15 @@ GET_LATEST_FIRMWARE()
 
     local MODEL="$1"
     local CSC="$2"
+    local CONFIGURED_VERSION
     local VERSION_XML
     local LATEST
+
+    CONFIGURED_VERSION="$(GET_CONFIGURED_FIRMWARE_VERSION "$MODEL" "$CSC" || true)"
+    if [ -n "$CONFIGURED_VERSION" ]; then
+        echo "$CONFIGURED_VERSION"
+        return 0
+    fi
 
     VERSION_XML="$(curl --fail --location --silent \
         --retry 5 --retry-all-errors --retry-delay 2 --retry-max-time 60 \

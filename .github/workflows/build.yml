@@ -260,6 +260,21 @@ jobs:
           fi
           echo "usable=false" >> "$GITHUB_OUTPUT"
 
+      - name: Discard stale firmware caches
+        if: steps.source-firmware-cache-check.outputs.usable != 'true' || steps.target-firmware-cache-check.outputs.usable != 'true'
+        env:
+          SOURCE_FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.source_dir }}
+          SOURCE_CACHE_USABLE: ${{ steps.source-firmware-cache-check.outputs.usable }}
+          TARGET_FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.target_dir }}
+          TARGET_CACHE_USABLE: ${{ steps.target-firmware-cache-check.outputs.usable }}
+        run: |
+          if [[ "$SOURCE_CACHE_USABLE" != "true" ]]; then
+            rm -rf "out/odin/$SOURCE_FIRMWARE_DIR"
+          fi
+          if [[ "$TARGET_CACHE_USABLE" != "true" ]]; then
+            rm -rf "out/odin/$TARGET_FIRMWARE_DIR"
+          fi
+
       - name: Download source firmware
         if: steps.source-firmware-cache-check.outputs.usable != 'true'
         run: |
