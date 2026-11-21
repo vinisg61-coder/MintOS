@@ -487,9 +487,14 @@ def upload(args):
         print(f"- Creating draft release {tag}")
         # The API returns the new release; listing it right away can miss it
         # for a few seconds.
-        rel = json.loads(gh("api", "-X", "POST", f"repos/{args.repo}/releases",
-                            "-f", f"tag_name={tag}", "-f", f"name={tag}",
-                            "-f", "body=", "-F", "draft=true"))
+        create_args = ["api", "-X", "POST", f"repos/{args.repo}/releases",
+                       "-f", f"tag_name={tag}", "-f", f"name={tag}",
+                       "-f", "body=", "-F", "draft=true"]
+        target_commitish = (getattr(args, "target_commitish", None)
+                            or os.environ.get("GITHUB_SHA"))
+        if target_commitish:
+            create_args.extend(["-f", f"target_commitish={target_commitish}"])
+        rel = json.loads(gh(*create_args))
     assets = {a["name"]: a for a in rel["assets"]}
     upload_url = rel["upload_url"].split("{")[0]
     if not upload_url.startswith("https://uploads.github.com/"):
@@ -533,10 +538,10 @@ def upload(args):
             os.remove(path)
             print(f"  removed local {name}")
 
-    if args.publish and rel.get("draft"):
-        print(f"- Publishing {tag}")
+    if args.publish:
+        print(f"- Publishing {tag} as the latest release")
         gh("release", "edit", tag, "-R", args.repo, "--draft=false", "--latest")
-        # Publishing moves the release from its untagged draft URL to the tag.
+        # Keep the manifest's releases/latest URL pointed at this OTA build.
         rel = find_release(args.repo, tag) or dict(rel, draft=False)
     state = "draft" if rel.get("draft") else "published"
     print(f"\nRelease {tag} ({state}): {rel['html_url']}")
@@ -627,6 +632,7 @@ def main():
 
     pp = sub.add_parser("prepare", help="write descriptors, parts and manifest")
     pp.add_argument("--tag", help="release tag (default: <version>-<build date>)")
+    pp.add_argument("--target-commitish", help="commit or branch for a newly created release tag")
     pp.add_argument("--repo", default=DEFAULT_REPO)
     pp.add_argument("--base-url", help="host the files somewhere else than the "
                     "GitHub release (URL of the directory holding them)")

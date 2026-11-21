@@ -11,8 +11,23 @@ on:
           - debug
         default: normal
         required: true
+      publish_release:
+        description: Publish the installable ZIP as a regular GitHub Release
+        type: boolean
+        default: false
+        required: true
       publish_ota:
-        description: Publish this successful build as the latest Samsung Software Update for the A52s
+        description: Publish OTA for A52s devices (also creates a GitHub Release for the updater)
+        type: boolean
+        default: false
+        required: true
+      upload_gofile:
+        description: Upload the installable ZIP to GoFile (no API key required)
+        type: boolean
+        default: false
+        required: true
+      upload_pixeldrain:
+        description: Upload the installable ZIP to Pixeldrain (requires PIXELDRAIN_API_KEY secret)
         type: boolean
         default: false
         required: true
@@ -493,12 +508,14 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  publish-ota:
+  publish:
     needs: build
     if: >-
       needs.build.result == 'success' &&
-      ((github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted') ||
-      (github.event_name == 'workflow_dispatch' && inputs.build_mode == 'normal' && inputs.publish_ota == true))
+      github.event_name == 'workflow_dispatch' &&
+      inputs.build_mode == 'normal' &&
+      (inputs.publish_release == true || inputs.publish_ota == true ||
+      inputs.upload_gofile == true || inputs.upload_pixeldrain == true)
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -514,7 +531,218 @@ jobs:
           name: MintOS-a52sxq-${{ github.run_number }}
           path: out
 
-      - name: Publish A52s OTA update to GitHub Releases
+      - name: Locate installable ZIP
+        id: package
+        run: |
+          shopt -s nullglob
+          zips=(out/*.zip)
+          if [[ ${#zips[@]} -ne 1 ]]; then
+            echo "Expected one installable ZIP in out/, found ${#zips[@]}" >&2
+            printf ' - %s\n' "${zips[@]}" >&2
+            exit 1
+          fi
+          echo "path=${zips[0]}" >> "$GITHUB_OUTPUT"
+          zip_size="$(stat -c '%s' "${zips[0]}")"
+          echo "size=$zip_size" >> "$GITHUB_OUTPUT"
+          echo "ROM ZIP: ${zips[0]}"
+
+      - name: Calculate release tag
+        id: release-tag
+        env:
+          ROM_ZIP: ${{ steps.package.outputs.path }}
+        run: |
+          python3 - "$ROM_ZIP" "$GITHUB_RUN_NUMBER" "$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT" <<'PY'
+          import datetime
+          import sys
+          import zipfile
+
+          path, run_number, run_attempt = sys.argv[1:]
+          with zipfile.ZipFile(path) as package:
+              info = dict(line.split("=", 1) for line in package.read("build_info.txt").decode().splitlines() if "=" in line)
+          if not all(info.get(key) for key in ("version", "timestamp", "device")):
+              raise SystemExit("build_info.txt is missing version, timestamp, or device")
+          if info["device"] != "a52sxq":
+              raise SystemExit(f"Refusing to publish unexpected device: {info['device']}")
+          date = datetime.datetime.fromtimestamp(int(info["timestamp"]), datetime.timezone.utc)
+          print(f"tag=MintOS-{info['version']}-{date:%Y%m%d-%H%M}-run{run_number}-attempt{run_attempt}")
+          print(f"version={info['version']}")
+          PY
+
+      - name: Upload ROM to GoFile
+        if: inputs.upload_gofile == true
+        id: gofile-upload
+        continue-on-error: true
+        run: ./scripts/upload_gofile.sh "${{ steps.package.outputs.path }}"
+
+      - name: Upload ROM to Pixeldrain
+        if: inputs.upload_pixeldrain == true
+        id: pixeldrain-upload
+        continue-on-error: true
+        env:
+          PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
+        run: ./scripts/upload_pixeldrain.sh "${{ steps.package.outputs.path }}"
+
+      - name: Publish regular GitHub Release
+        if: inputs.publish_release == true && inputs.publish_ota != true
+        id: release-publish
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/fota_release.py prepare --repo "$GITHUB_REPOSITORY" --publish
+          ROM_ZIP: ${{ steps.package.outputs.path }}
+          RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
+          ROM_VERSION: ${{ steps.release-tag.outputs.version }}
+        run: |
+          max_asset_size=$((2000 * 1024 * 1024))
+          zip_size="$(stat -c '%s' "$ROM_ZIP")"
+          release_assets=("$ROM_ZIP")
+
+          if (( zip_size > max_asset_size )); then
+            mkdir -p out/release-assets
+            prefix="out/release-assets/$(basename "$ROM_ZIP").part."
+            split --bytes=1900M --numeric-suffixes=1 --suffix-length=3 \
+              "$ROM_ZIP" "$prefix"
+            release_assets=("${prefix}"*)
+            instructions="out/release-assets/INSTALL.txt"
+            cat > "$instructions" <<EOF
+          MintOS installable ZIP: $(basename "$ROM_ZIP")
+
+          GitHub limits each release asset to 2 GiB, so the ZIP is split across the .part.001, .part.002, ... files.
+          Download every part into the same folder, then join them in filename order.
+
+          Linux/macOS:
+            cat "$(basename "$ROM_ZIP")".part.* > "$(basename "$ROM_ZIP")"
+
+          Windows PowerShell:
+            \$parts = Get-ChildItem "$(basename "$ROM_ZIP").part.*" | Sort-Object Name
+            \$dest = [IO.File]::Create("$(basename "$ROM_ZIP")")
+            foreach (\$part in \$parts) {
+              \$source = [IO.File]::OpenRead(\$part.FullName)
+              \$source.CopyTo(\$dest)
+              \$source.Dispose()
+            }
+            \$dest.Dispose()
+          EOF
+            release_assets+=("$instructions")
+          fi
+
+          gh release create "$RELEASE_TAG" "${release_assets[@]}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "MintOS $ROM_VERSION for Galaxy A52s" \
+            --notes "Installable MintOS build for the Galaxy A52s (a52sxq)." \
+            --latest=false
+          echo "### GitHub Release" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published: https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish A52s OTA update
+        if: inputs.publish_ota == true
+        id: ota-publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROM_ZIP: ${{ steps.package.outputs.path }}
+          RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
+        run: |
+          python3 scripts/fota_release.py prepare \
+            --repo "$GITHUB_REPOSITORY" \
+            --tag "$RELEASE_TAG" \
+            --target-commitish "$GITHUB_SHA" \
+            --publish \
+            "$ROM_ZIP"
+          echo "### A52s OTA" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published for device updates: https://github.com/$GITHUB_REPOSITORY/releases/tag/$RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Add regular release details to OTA release
+        if: inputs.publish_ota == true && inputs.publish_release == true
+        id: ota-release-details
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ROM_ZIP: ${{ steps.package.outputs.path }}
+          ROM_ZIP_SIZE: ${{ steps.package.outputs.size }}
+          RELEASE_TAG: ${{ steps.release-tag.outputs.tag }}
+          ROM_VERSION: ${{ steps.release-tag.outputs.version }}
+        run: |
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --title "MintOS $ROM_VERSION for Galaxy A52s" \
+            --notes "Installable MintOS build and A52s OTA update."
+
+          if (( ROM_ZIP_SIZE > 2000 * 1024 * 1024 )); then
+            instructions="out/INSTALL.txt"
+            cat > "$instructions" <<EOF
+          MintOS installable ZIP: $(basename "$ROM_ZIP")
+
+          GitHub limits each release asset to 2 GiB, so the ZIP is split across the .001, .002, ... files.
+          Download every package part into the same folder, then join them in filename order.
+
+          Linux/macOS:
+            cat "$(basename "$ROM_ZIP")".0* > "$(basename "$ROM_ZIP")"
+
+          Windows PowerShell:
+            \$parts = Get-ChildItem "$(basename "$ROM_ZIP").0*" | Sort-Object Name
+            \$dest = [IO.File]::Create("$(basename "$ROM_ZIP")")
+            foreach (\$part in \$parts) {
+              \$source = [IO.File]::OpenRead(\$part.FullName)
+              \$source.CopyTo(\$dest)
+              \$source.Dispose()
+            }
+            \$dest.Dispose()
+          EOF
+            gh release upload "$RELEASE_TAG" "$instructions" \
+              --repo "$GITHUB_REPOSITORY"
+          fi
+
+      - name: Add GoFile upload to summary
+        if: always() && inputs.upload_gofile == true
+        env:
+          DOWNLOAD_URL: ${{ steps.gofile-upload.outputs.url }}
+        run: |
+          echo "### GoFile" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$DOWNLOAD_URL" ]]; then
+            echo "Download: $DOWNLOAD_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Upload failed; see the GoFile step logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Add Pixeldrain upload to summary
+        if: always() && inputs.upload_pixeldrain == true
+        env:
+          DOWNLOAD_URL: ${{ steps.pixeldrain-upload.outputs.url }}
+        run: |
+          echo "### Pixeldrain" >> "$GITHUB_STEP_SUMMARY"
+          if [[ -n "$DOWNLOAD_URL" ]]; then
+            echo "Download: $DOWNLOAD_URL" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Upload failed; see the Pixeldrain step logs." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail if a requested destination failed
+        if: always()
+        env:
+          WANT_RELEASE: ${{ inputs.publish_release }}
+          WANT_OTA: ${{ inputs.publish_ota }}
+          WANT_GOFILE: ${{ inputs.upload_gofile }}
+          WANT_PIXELDRAIN: ${{ inputs.upload_pixeldrain }}
+          RELEASE_RESULT: ${{ steps.release-publish.outcome }}
+          OTA_RESULT: ${{ steps.ota-publish.outcome }}
+          OTA_DETAILS_RESULT: ${{ steps.ota-release-details.outcome }}
+          GOFILE_RESULT: ${{ steps.gofile-upload.outcome }}
+          PIXELDRAIN_RESULT: ${{ steps.pixeldrain-upload.outcome }}
+        run: |
+          failed=()
+          if [[ "$WANT_RELEASE" == "true" && "$WANT_OTA" != "true" && "$RELEASE_RESULT" != "success" ]]; then
+            failed+=("GitHub Release")
+          fi
+          if [[ "$WANT_OTA" == "true" && "$OTA_RESULT" != "success" ]]; then
+            failed+=("A52s OTA")
+          fi
+          if [[ "$WANT_RELEASE" == "true" && "$WANT_OTA" == "true" && "$OTA_DETAILS_RESULT" != "success" ]]; then
+            failed+=("GitHub Release details")
+          fi
+          if [[ "$WANT_GOFILE" == "true" && "$GOFILE_RESULT" != "success" ]]; then
+            failed+=("GoFile")
+          fi
+          if [[ "$WANT_PIXELDRAIN" == "true" && "$PIXELDRAIN_RESULT" != "success" ]]; then
+            failed+=("Pixeldrain")
+          fi
+          if (( ${#failed[@]} > 0 )); then
+            printf 'Requested destination(s) failed: %s\n' "${failed[*]}" >&2
+            exit 1
+          fi
