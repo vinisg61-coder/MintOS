@@ -27,10 +27,15 @@ on:
         default: false
         required: true
       upload_pixeldrain:
-        description: Upload the installable ZIP to Pixeldrain (requires PIXELDRAIN_API_KEY secret)
+        description: Upload the installable ZIP to Pixeldrain using the key below or saved repository secret
         type: boolean
         default: false
         required: true
+      pixeldrain_api_key:
+        description: Optional Pixeldrain API key for this run; saved repository secret is safer
+        type: string
+        default: ''
+        required: false
   pull_request:
   push:
     branches:
@@ -525,6 +530,12 @@ jobs:
         with:
           submodules: false
 
+      - name: Mask Pixeldrain key from run logs
+        if: inputs.pixeldrain_api_key != ''
+        env:
+          PIXELDRAIN_API_KEY: ${{ inputs.pixeldrain_api_key }}
+        run: echo "::add-mask::$PIXELDRAIN_API_KEY"
+
       - name: Download installable A52s ROM ZIP
         uses: actions/download-artifact@v6
         with:
@@ -579,7 +590,7 @@ jobs:
         id: pixeldrain-upload
         continue-on-error: true
         env:
-          PIXELDRAIN_API_KEY: ${{ secrets.PIXELDRAIN_API_KEY }}
+          PIXELDRAIN_API_KEY: ${{ inputs.pixeldrain_api_key || secrets.PIXELDRAIN_API_KEY }}
         run: ./scripts/upload_pixeldrain.sh "${{ steps.package.outputs.path }}"
 
       - name: Publish regular GitHub Release
