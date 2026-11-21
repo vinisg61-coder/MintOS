@@ -120,6 +120,12 @@ if [[ "$(GET_FP_SENSOR_TYPE "$SOURCE_FP_SENSOR_CONFIG")" != "$(GET_FP_SENSOR_TYP
     if [[ "$TARGET_SINGLE_SYSTEM_IMAGE" == "qssi" ]]; then
         if [[ "$(GET_FP_SENSOR_TYPE "$TARGET_FP_SENSOR_CONFIG")" == "optical" ]]; then
             ADD_TO_WORK_DIR "r9qxxx" "system" "system/bin/surfaceflinger" 0 2000 755 "u:object_r:surfaceflinger_exec:s0"
+            # Apply upstream UN1CA's compatibility fix when an older vendor
+            # does not expose IQtiComposer to the API 36 donor SurfaceFlinger.
+            if [[ "$TARGET_API_LEVEL" -lt 36 ]] && ! grep -q -r "IQtiComposer" "$WORK_DIR/vendor/etc/vintf"; then
+                HEX_PATCH "$WORK_DIR/system/system/bin/surfaceflinger" \
+                    "9f8a00712b03005400068052" "9f8a00711f2003d500068052"
+            fi
             ADD_TO_WORK_DIR "r9qxxx" "system" "system/lib/libgui.so" 0 0 644 "u:object_r:system_lib_file:s0"
             ADD_TO_WORK_DIR "r9qxxx" "system" "system/lib/libui.so" 0 0 644 "u:object_r:system_lib_file:s0"
             ADD_TO_WORK_DIR "r9qxxx" "system" "system/lib64/libgui.so" 0 0 644 "u:object_r:system_lib_file:s0"

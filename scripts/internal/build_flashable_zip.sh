@@ -41,8 +41,8 @@ if $ROM_IS_OFFICIAL; then
     PRIVATE_KEY_PATH+="platform"
     PUBLIC_KEY_PATH+="platform"
 else
-    PRIVATE_KEY_PATH+="aosp_platform"
-    PUBLIC_KEY_PATH+="aosp_platform"
+    PRIVATE_KEY_PATH+="aosp_testkey"
+    PUBLIC_KEY_PATH+="aosp_testkey"
 fi
 PRIVATE_KEY_PATH+=".pk8"
 PUBLIC_KEY_PATH+=".x509.pem"
@@ -130,6 +130,7 @@ GENERATE_BUILD_INFO()
         echo "device=$TARGET_CODENAME"
         echo "version=$ROM_VERSION"
         echo "timestamp=$ROM_BUILD_TIMESTAMP"
+        echo "incremental=0"
         echo "security_patch_version=$(GET_PROP "system" "ro.build.version.security_patch")"
     } > "$BUILD_INFO_FILE"
 }
@@ -337,6 +338,7 @@ GENERATE_UPDATER_SCRIPT()
         fi
 
         PRINT_HEADER
+        PRINT_FOTA_STATUS "FAIL" || exit 1
 
         # https://android.googlesource.com/platform/build/+/refs/tags/android-15.0.0_r1/tools/releasetools/common.py#4007
         echo -e "\n# --- Start patching dynamic partitions ---\n\n"
@@ -452,6 +454,7 @@ GENERATE_UPDATER_SCRIPT()
             cat "$SRC_DIR/target/$TARGET_CODENAME/postinstall.edify"
         fi
 
+        PRINT_FOTA_STATUS "DONE" || exit 1
         echo    'set_progress(1.000000);'
         echo    'ui_print("************************************************");'
         echo    'ui_print(" ");'
@@ -605,12 +608,8 @@ GENERATE_OTA_METADATA
 LOG "- Creating zip"
 CREATE_ROM_ZIP
 
-if $ROM_IS_OFFICIAL; then
-    LOG "- Signing zip"
-    EVAL "signapk -w \"$PUBLIC_KEY_PATH\" \"$PRIVATE_KEY_PATH\" \"$TMP_DIR/rom.zip\" \"$OUT_DIR/$ZIP_FILE_NAME\"" || exit 1
-    rm -f "$TMP_DIR/rom.zip"
-else
-    mv -f "$TMP_DIR/rom.zip" "$OUT_DIR/$ZIP_FILE_NAME"
-fi
+LOG "- Signing zip"
+EVAL "signapk -w \"$PUBLIC_KEY_PATH\" \"$PRIVATE_KEY_PATH\" \"$TMP_DIR/rom.zip\" \"$OUT_DIR/$ZIP_FILE_NAME\"" || exit 1
+rm -f "$TMP_DIR/rom.zip"
 
 exit 0

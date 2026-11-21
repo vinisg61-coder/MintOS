@@ -19,6 +19,19 @@
 source "$SRC_DIR/scripts/utils/common_utils.sh"
 # ]
 
+# PRINT_FOTA_STATUS <FAIL|DONE>
+# Record the install result for the Samsung FotaAgent updater when present.
+PRINT_FOTA_STATUS()
+{
+    _CHECK_NON_EMPTY_PARAM "STATUS" "$1" || return 1
+    if [[ "$1" != "FAIL" && "$1" != "DONE" ]]; then
+        LOGE "Invalid FOTA install status: $1"
+        return 1
+    fi
+
+    echo "run_program(\"/sbin/sh\", \"-c\", \"[ -f /cache/fota/fota.status ] && echo $1 > /cache/fota/fota.status; exit 0\");"
+}
+
 # GET_DISK_USAGE <file>
 # Returns the size in bytes of the supplied file.
 GET_DISK_USAGE()

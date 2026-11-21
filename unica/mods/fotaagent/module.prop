@@ -1,0 +1,4 @@
+id=fotaagent
+name=FotaAgent ROM updater
+author=At30c, MintOS
+description=Keeps Samsung Software Update and routes A52s MintOS updates to GitHub Releases.

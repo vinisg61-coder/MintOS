@@ -112,7 +112,6 @@ system/etc/permissions/privapp-permissions-com.sec.bcservice.xml
 system/etc/permissions/privapp-permissions-com.sec.epdgtestapp.xml
 system/etc/permissions/privapp-permissions-com.sec.facatfunction.xml
 system/etc/permissions/privapp-permissions-com.sem.factoryapp.xml
-system/etc/permissions/privapp-permissions-com.wssyncmldm.xml
 system/etc/permissions/privapp-permissions-de.axelspringer.yana.zeropage.xml
 system/etc/permissions/privapp-permissions-meta.xml
 system/etc/sysconfig/digitalkey.xml
@@ -131,7 +130,6 @@ system/priv-app/DiagMonAgent95
 system/priv-app/DigitalKey
 system/priv-app/FBInstaller_NS
 system/priv-app/FBServices
-system/priv-app/FotaAgent
 system/priv-app/OneDrive_Samsung_v3
 system/priv-app/OMCAgent5
 system/priv-app/PaymentFramework

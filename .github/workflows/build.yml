@@ -11,6 +11,11 @@ on:
           - debug
         default: normal
         required: true
+      publish_ota:
+        description: Publish this successful build as the latest Samsung Software Update for the A52s
+        type: boolean
+        default: false
+        required: true
   pull_request:
   push:
     branches:
@@ -477,6 +482,7 @@ jobs:
           path: out/*.zip
           if-no-files-found: error
           retention-days: 14
+          compression-level: 0
 
       - name: Upload ROM debug diagnostics
         if: always() && env.ROM_BUILD_MODE == 'debug'
@@ -486,3 +492,29 @@ jobs:
           path: out/target/a52sxq/rom-build-errors.log
           if-no-files-found: ignore
           retention-days: 14
+
+  publish-ota:
+    needs: build
+    if: >-
+      needs.build.result == 'success' &&
+      ((github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted') ||
+      (github.event_name == 'workflow_dispatch' && inputs.build_mode == 'normal' && inputs.publish_ota == true))
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          submodules: false
+
+      - name: Download installable A52s ROM ZIP
+        uses: actions/download-artifact@v6
+        with:
+          name: MintOS-a52sxq-${{ github.run_number }}
+          path: out
+
+      - name: Publish A52s OTA update to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/fota_release.py prepare --repo "$GITHUB_REPOSITORY" --publish
