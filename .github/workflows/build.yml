@@ -312,7 +312,7 @@ jobs:
           )
           usable=true
           for file in "${files[@]}"; do
-            if [[ ! -s "$file" ]]; then
+            if [[ ! -s "$file" && ! -L "$file" ]]; then
               usable=false
               break
             fi
@@ -460,9 +460,11 @@ jobs:
           ./scripts/download_fw.sh --ignore-target --ignore-source "$DONOR_FIRMWARE"
           ./scripts/extract_fw.sh --ignore-target --ignore-source "$DONOR_FIRMWARE"
 
-          donor_partition="$FW_DIR/$DONOR_DIR/system"
-          donor_system="$donor_partition/system"
-          [[ -d "$donor_system/bin" ]] || donor_system="$donor_partition"
+          donor_partition="$FW_DIR/$DONOR_DIR"
+          donor_partitions=(
+            "$donor_partition/system"
+            "$donor_partition/system_ext"
+          )
           donor_root="prebuilts/samsung/r9qxxx/system"
           required_files=(
             "bin/surfaceflinger"
@@ -473,12 +475,19 @@ jobs:
             "priv-app/BiometricSetting/BiometricSetting.apk"
           )
           for file in "${required_files[@]}"; do
-            if [[ ! -s "$donor_system/$file" ]]; then
-              echo "Missing optical fingerprint donor file: $donor_system/$file" >&2
+            donor_file=""
+            for partition in "${donor_partitions[@]}"; do
+              [[ -d "$partition" ]] || continue
+              donor_file="$(find "$partition" -path "*/$file" -print -quit)"
+              [[ -n "$donor_file" ]] && break
+            done
+            if [[ -z "$donor_file" || ( ! -s "$donor_file" && ! -L "$donor_file" ) ]]; then
+              echo "Missing optical fingerprint donor file ending in /$file under $donor_partition/{system,system_ext}" >&2
               exit 1
             fi
+            echo "Using optical fingerprint donor file: $donor_file"
             mkdir -p "$donor_root/$(dirname "$file")"
-            cp -f "$donor_system/$file" "$donor_root/$file"
+            cp -fa "$donor_file" "$donor_root/$file"
           done
 
           cp -f "$FW_DIR/$DONOR_DIR/.extracted" "prebuilts/samsung/r9qxxx/.optical-fod-version"

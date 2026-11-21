@@ -210,6 +210,8 @@ for i in "${FIRMWARES[@]}"; do
     LOG_STEP_OUT; LOG_STEP_OUT
 done
 
-deactivate
+if declare -F deactivate >/dev/null; then
+    deactivate
+fi
 
 exit 0
