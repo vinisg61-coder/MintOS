@@ -11,6 +11,11 @@ on:
           - debug
         default: normal
         required: true
+      rom_version:
+        description: Optional version; blank uses automatic version. Allowed characters are letters, numbers, dot, underscore, and hyphen
+        type: string
+        default: ''
+        required: false
       publish_release:
         description: Publish the installable ZIP as a regular GitHub Release
         type: boolean
@@ -49,6 +54,7 @@ jobs:
       contents: read
     env:
       ROM_BUILD_MODE: ${{ github.event.inputs.build_mode || 'normal' }}
+      ROM_VERSION_OVERRIDE: ${{ github.event.inputs.rom_version || '' }}
 
     strategy:
       fail-fast: false
@@ -56,6 +62,17 @@ jobs:
         target: [a52sxq]
 
     steps:
+      - name: Validate custom ROM version
+        run: |
+          if [[ -z "$ROM_VERSION_OVERRIDE" ]]; then
+            echo "Using the automatic ROM version"
+          elif [[ ! "$ROM_VERSION_OVERRIDE" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+            echo "ROM version must be 1-64 characters: letters, numbers, dot, underscore, or hyphen." >&2
+            exit 1
+          else
+            echo "Using custom ROM version: $ROM_VERSION_OVERRIDE"
+          fi
+
       - name: Checkout repo
         uses: actions/checkout@v7
         with:
