@@ -180,7 +180,17 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '11'
-          cache: 'gradle'
+
+      - name: Restore Gradle dependency cache
+        id: gradle-cache
+        uses: actions/cache/restore@v6
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-${{ runner.os }}-${{ hashFiles('external/apktool/gradle/wrapper/gradle-wrapper.properties', 'external/apktool/**/build.gradle*', 'external/apktool/**/settings.gradle*', 'scripts/gradle-mirror.init.gradle') }}
+          restore-keys: gradle-${{ runner.os }}-
 
       - name: Calculate dependency cache key
         id: dependency-refs
@@ -199,12 +209,23 @@ jobs:
           key: tools-${{ runner.os }}-ubuntu24-${{ hashFiles('external/make.sh', 'scripts/build_dependencies.sh', 'scripts/download_magiskboot.sh', 'scripts/download_samloader.sh', 'scripts/gradle-mirror.init.gradle', 'buildenv.sh', 'target/a52sxq/config.sh', 'unica/configs/qssi.sh', 'unica/configs/essi.sh') }}-${{ steps.dependency-refs.outputs.submodules }}-${{ steps.dependency-refs.outputs.packages }}
 
       - name: Build dependencies
+        id: build-dependencies
         if: steps.tools-cache.outputs.cache-hit != 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           source ./buildenv.sh ${{ matrix.target }}
           ./scripts/build_dependencies.sh
+
+      - name: Save Gradle dependency cache
+        if: always() && steps.build-dependencies.outcome != 'skipped' && steps.gradle-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        continue-on-error: true
+        with:
+          path: |
+            ~/.gradle/caches/modules-2
+            ~/.gradle/wrapper/dists
+          key: gradle-${{ runner.os }}-${{ hashFiles('external/apktool/gradle/wrapper/gradle-wrapper.properties', 'external/apktool/**/build.gradle*', 'external/apktool/**/settings.gradle*', 'scripts/gradle-mirror.init.gradle') }}
 
       - name: Save compiled build tools
         if: success() && steps.tools-cache.outputs.cache-hit != 'true'

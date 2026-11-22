@@ -1,8 +1,8 @@
 allprojects {
     repositories {
         maven {
-            name = "MavenCentralMirror"
-            url = uri("https://repo1.maven.org/maven2/")
+            name = "GoogleMavenCentralMirror"
+            url = uri("https://maven-central.storage-download.googleapis.com/maven2/")
         }
     }
 }
