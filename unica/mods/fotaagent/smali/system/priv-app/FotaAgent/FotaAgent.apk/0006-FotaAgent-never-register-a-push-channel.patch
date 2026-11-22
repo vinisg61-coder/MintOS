@@ -12,7 +12,7 @@ diff --git a/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$1.
 index 511dd4d..ace34b9 100644
 --- a/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$1.smali
 +++ b/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$1.smali
-@@ -189,6 +189,12 @@
+@@ -189,3 +189,9 @@
  .method public isAvailable(Landroid/content/Context;)Z
      .locals 1
  
@@ -22,9 +22,6 @@ index 511dd4d..ace34b9 100644
 +    return p0
 +
 +
-     sget-object p0, Lb4/d;->d:Lb4/d;
- 
-     sget v0, Lb4/e;->a:I
 diff --git a/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$2.smali b/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$2.smali
 index b1eeb0e..c122ab5 100644
 --- a/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$2.smali

@@ -11,7 +11,7 @@ diff --git a/smali/com/idm/agent/restclient/RestRequestExecutor.smali b/smali/co
 index 4417efa..4353b8d 100644
 --- a/smali/com/idm/agent/restclient/RestRequestExecutor.smali
 +++ b/smali/com/idm/agent/restclient/RestRequestExecutor.smali
-@@ -796,6 +796,12 @@
+@@ -796,3 +796,9 @@
  .method public start()V
      .locals 3
  
@@ -21,6 +21,3 @@ index 4417efa..4353b8d 100644
 +    return-void
 +
 +
-     new-instance v0, Ljava/lang/Thread;
- 
-     new-instance v1, La6/b;
