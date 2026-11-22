@@ -18,7 +18,7 @@ index a7bdd3587..09b7deea9 100644
  
      invoke-virtual {v0, v3}, Landroid/widget/TextView;->setText(I)V
  
--    const v0, 0x7f1425ac
+-    const v0, 0x7f1425a9
 +    const v0, 0x7f1425aa
  
      invoke-virtual {v2, v0}, Landroid/widget/TextView;->setText(I)V
@@ -31,7 +31,7 @@ index b7a242cfe..9d678f44c 100644
  
      invoke-virtual {v1, v6}, Landroid/widget/TextView;->setText(I)V
  
--    const v1, 0x7f1425ac
+-    const v1, 0x7f1425a9
 +    const v1, 0x7f1425aa
  
      invoke-virtual {v5, v1}, Landroid/widget/TextView;->setText(I)V
@@ -499,7 +499,7 @@ index 6c967cfe5..36e00e048 100644
 +    :cond_c
      iget-object v8, p0, Lcom/samsung/android/settings/biometrics/fingerprint/FingerprintSettings;->mAlwaysOn:Landroidx/preference/SwitchPreference;
  
-     const v10, 0x7f142596
+     const v10, 0x7f142593
  
      invoke-virtual {v8, v10}, Landroidx/preference/Preference;->setSummary(I)V
  
@@ -1487,7 +1487,7 @@ index 6c967cfe5..36e00e048 100644
 -    if-lt v2, v0, :cond_3b
 +    if-lt v2, v0, :cond_3d
  
-     const v0, 0x7f1425dd
+     const v0, 0x7f1425da
  
 -    goto :goto_1d
 +    goto :goto_1f
@@ -1495,7 +1495,7 @@ index 6c967cfe5..36e00e048 100644
      :catch_3
 -    :cond_3b
 +    :cond_3d
-     const v0, 0x7f1413a5
+     const v0, 0x7f1413a2
  
 -    :goto_1d
 +    :goto_1f
@@ -1726,8 +1726,8 @@ index 70b1cc9a3..1f31a63fd 100644
 +
 +    const v3, 0x7f1425b1
  
--    const v3, 0x7f142599
-+    const v4, 0x7f142599
+-    const v3, 0x7f142596
++    const v4, 0x7f142596
  
 -    if-eqz v1, :cond_1
 +    if-eqz v1, :cond_6
@@ -1745,7 +1745,7 @@ index 70b1cc9a3..1f31a63fd 100644
  
      move-result-object v0
  
--    const v1, 0x7f1425b1
+-    const v1, 0x7f1425ae
 +    invoke-virtual {p1, v3, v0}, Landroid/content/res/Resources;->getString(I[Ljava/lang/Object;)Ljava/lang/String;
 +
 +    move-result-object p1
