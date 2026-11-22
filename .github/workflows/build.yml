@@ -476,6 +476,43 @@ jobs:
               ./scripts/make_rom.sh
           fi
 
+      - name: Capture optical fingerprint patch context
+        if: always() && steps.build-rom.outcome == 'failure'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("out/target/a52sxq/apktool/system/priv-app/SecSettings/SecSettings.apk")
+          regions = {
+              "smali_classes4/com/samsung/android/settings/biometrics/BiometricsDisclaimerActivity.smali": [(1455, 1495)],
+              "smali_classes4/com/samsung/android/settings/biometrics/SuwBiometricsDisclaimerActivity.smali": [(590, 625)],
+              "smali_classes4/com/samsung/android/settings/biometrics/fingerprint/FingerprintSettings.smali": [(4185, 4285), (5535, 5660)],
+              "smali_classes4/com/samsung/android/settings/biometrics/fingerprint/RegisterFingerprint.smali": [(525, 760)],
+          }
+          output = ["SecSettings optical FOD patch context from the failed A52s build", ""]
+          for relative_path, ranges in regions.items():
+              path = root / relative_path
+              output.extend([f"===== {relative_path} =====", ""])
+              if not path.is_file():
+                  output.extend(["File missing from decoded SecSettings.apk", ""])
+                  continue
+              lines = path.read_text(errors="replace").splitlines()
+              for first, last in ranges:
+                  output.append(f"--- lines {first}-{last} ---")
+                  output.extend(f"{number}: {lines[number - 1]}" for number in range(first, min(last, len(lines)) + 1))
+                  output.append("")
+          Path("out/fod-patch-context.txt").write_text("\n".join(output), encoding="utf-8")
+          PY
+
+      - name: Upload optical fingerprint patch context
+        if: always() && steps.build-rom.outcome == 'failure'
+        uses: actions/upload-artifact@v6
+        with:
+          name: MintOS-a52sxq-fod-context-${{ github.run_number }}
+          path: out/fod-patch-context.txt
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Upload installable ROM ZIP
         if: steps.build-rom.outcome == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted'))
         uses: actions/upload-artifact@v6
