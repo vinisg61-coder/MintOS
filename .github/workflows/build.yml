@@ -540,10 +540,14 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          root = Path("out/target/a52sxq/apktool/system/priv-app/FotaAgent/FotaAgent.apk/smali")
+          apk = Path("out/target/a52sxq/apktool/system/priv-app/FotaAgent/FotaAgent.apk")
+          root = apk / "smali"
           methods = {
               "com/idm/agent/restclient/RestRequestExecutor.smali": ".method public start()V",
               "com/idm/fotaagent/restapi/restclient/push/message/PushType$1.smali": ".method public isAvailable(Landroid/content/Context;)Z",
+              "com/idm/fotaagent/enabler/fumo/executor/IDMFumoExecutorUpdateFailedNodata.smali": ".method public idmFumoStart()V",
+              "com/idm/fotaagent/enabler/fumo/executor/IDMFumoExecutorUpdateSuccessfulNodata.smali": ".method public idmFumoStart()V",
+              "com/idm/fotaagent/restapi/restclient/polling/state/PollingStartState.smali": ".method public onExecute()V",
           }
           output = ["FotaAgent patch context from the failed A52s build", ""]
           for relative_path, signature in methods.items():
@@ -561,6 +565,14 @@ jobs:
               end = next((index for index in range(start + 1, len(lines)) if lines[index].strip() == ".end method"), len(lines) - 1)
               output.extend(f"{number}: {lines[number - 1]}" for number in range(start + 1, end + 2))
               output.append("")
+
+          manifest = apk / "AndroidManifest.xml"
+          output.extend(["===== AndroidManifest.xml (tail) =====", ""])
+          if manifest.is_file():
+              lines = manifest.read_text(errors="replace").splitlines()
+              output.extend(f"{number}: {line}" for number, line in enumerate(lines[-60:], max(1, len(lines) - 59)))
+          else:
+              output.append("AndroidManifest.xml missing from decoded FotaAgent.apk")
           Path("out/fotaagent-patch-context.txt").write_text("\n".join(output), encoding="utf-8")
           PY
 
@@ -571,7 +583,7 @@ jobs:
           name: MintOS-a52sxq-fotaagent-context-${{ github.run_number }}
           path: out/fotaagent-patch-context.txt
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 7
 
       - name: Upload installable ROM ZIP
         if: steps.build-rom.outcome == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted'))

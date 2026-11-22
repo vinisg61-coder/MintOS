@@ -138,6 +138,18 @@ APPLY_PATCH()
 
     LOG "- Applying \"$(grep "^Subject:" "$PATCH" | sed "s/.*PATCH] //; s/.*PATCH .\/.] //")\" to /$PARTITION/$FILE"
     local TARGET_DIR="$APKTOOL_DIR/$PARTITION/${FILE//system\//}"
+    case "$(basename "$PATCH")" in
+        0017-FotaAgent-finish-the-update-job-without-a-DM-report-.patch|0018-FotaAgent-check-the-ROM-update-manifest-instead-of-S.patch)
+            if python3 "$SRC_DIR/scripts/utils/apply_smali_compat_patch.py" "$PATCH" "$TARGET_DIR"; then
+                return 0
+            fi
+            RECORD_ROM_BUILD_ERROR "FotaAgent compatibility patch failed: $(basename "$PATCH")"
+            if IS_ROM_BUILD_DEBUG; then
+                return 0
+            fi
+            return 1
+            ;;
+    esac
     local APPLY_OUTPUT
     if APPLY_OUTPUT="$(LC_ALL=C git apply --directory="$TARGET_DIR" --verbose --unsafe-paths "$PATCH" 2>&1)"; then
         return 0

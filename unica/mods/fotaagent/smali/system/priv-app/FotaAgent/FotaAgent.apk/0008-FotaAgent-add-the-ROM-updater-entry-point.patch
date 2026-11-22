@@ -15,10 +15,7 @@ diff --git a/AndroidManifest.xml b/AndroidManifest.xml
 index 073c7ee..de8b19b 100644
 --- a/AndroidManifest.xml
 +++ b/AndroidManifest.xml
-@@ -261,5 +261,10 @@
-         </receiver>
-         <meta-data android:name="SPDE.build.signature" android:value="94efd5cb1d5c8e9674d8b66d5a2688639a737c4b/185534510/fotaagent-release/FotaAgent-400000-4.6.20"/>
-         <meta-data android:name="SPDE.env.version" android:value="8.13.2/G37.1.14/1.2.16"/>
+@@ -261,1 +261,6 @@
 +        <receiver android:exported="true" android:name="io.unica.fota.UpdateReceiver" android:permission="android.permission.DUMP">
 +            <intent-filter>
 +                <action android:name="io.unica.fota.START_UPDATE"/>
