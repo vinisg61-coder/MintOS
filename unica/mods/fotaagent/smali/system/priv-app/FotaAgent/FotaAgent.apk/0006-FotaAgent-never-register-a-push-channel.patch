@@ -12,10 +12,9 @@ diff --git a/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$1.
 index 511dd4d..ace34b9 100644
 --- a/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$1.smali
 +++ b/smali/com/idm/fotaagent/restapi/restclient/push/message/PushType$1.smali
-@@ -189,3 +189,9 @@
+@@ -189,2 +189,8 @@
  .method public isAvailable(Landroid/content/Context;)Z
      .locals 1
- 
 +    # UN1CA: no push channel (FCM or Samsung SPP) is ever registered.
 +    const/4 p0, 0x0
 +
