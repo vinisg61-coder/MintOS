@@ -278,7 +278,6 @@ jobs:
 
           write_firmware_version source "$SOURCE_FIRMWARE"
           write_firmware_version target "$TARGET_FIRMWARE"
-          write_firmware_version donor "SM-G990B/EUX/353718681234563"
 
       - name: Restore optical fingerprint donor cache
         id: optical-donor-cache
@@ -293,13 +292,11 @@ jobs:
             prebuilts/samsung/r9qxxx/system/lib64/libui.so
             prebuilts/samsung/r9qxxx/system/priv-app/BiometricSetting/BiometricSetting.apk
             prebuilts/samsung/r9qxxx/.optical-fod-version
-          key: fp-donor-${{ runner.os }}-G990B_EUX-${{ steps.firmware-refs.outputs.donor_hash }}
-          restore-keys: fp-donor-${{ runner.os }}-G990B_EUX-
+          key: fp-donor-${{ runner.os }}-unica-${{ hashFiles('scripts/optical_fod_donor.version', 'scripts/optical_fod_donor.sha256') }}
+          restore-keys: fp-donor-${{ runner.os }}-unica-
 
       - name: Check restored optical fingerprint donor cache
         id: optical-donor-cache-check
-        env:
-          EXPECTED_DONOR_FIRMWARE: ${{ steps.firmware-refs.outputs.donor_latest }}
         run: |
           files=(
             "prebuilts/samsung/r9qxxx/system/bin/surfaceflinger"
@@ -318,10 +315,15 @@ jobs:
             fi
           done
 
-          if [[ "$usable" == "true" && -n "$EXPECTED_DONOR_FIRMWARE" ]]; then
-            cached_donor_firmware="$(cat prebuilts/samsung/r9qxxx/.optical-fod-version)"
-            [[ "$cached_donor_firmware" == "$EXPECTED_DONOR_FIRMWARE" ]] || usable=false
+          expected_revision="$(tr -d '\r\n' < scripts/optical_fod_donor.version)"
+          if [[ "$usable" == "true" ]]; then
+            cached_revision="$(cat prebuilts/samsung/r9qxxx/.optical-fod-version)"
+            [[ "$cached_revision" == "$expected_revision" ]] || usable=false
           fi
+          if [[ "$usable" == "true" ]] && ! sha256sum --check --status scripts/optical_fod_donor.sha256; then
+            usable=false
+          fi
+          [[ "$usable" == "true" ]] && echo "Using cached UN1CA optical fingerprint blobs at $expected_revision"
           echo "usable=$usable" >> "$GITHUB_OUTPUT"
 
       - name: Check restored source firmware cache
@@ -445,54 +447,8 @@ jobs:
 
       - name: Prepare optical fingerprint donor blobs
         if: steps.optical-donor-cache-check.outputs.usable != 'true'
-        env:
-          DONOR_FIRMWARE: SM-G990B/EUX/353718681234563
-          DONOR_DIR: G990B_EUX
-          SOURCE_FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.source_dir }}
-          TARGET_FIRMWARE_DIR: ${{ steps.firmware-paths.outputs.target_dir }}
         run: |
-          source ./buildenv.sh ${{ matrix.target }}
-
-          # The firmware ZIP caches have already been saved, and both OS images extracted.
-          # Drop the ZIPs to make room for the one-time optical donor extraction.
-          rm -rf "$ODIN_DIR/$SOURCE_FIRMWARE_DIR" "$ODIN_DIR/$TARGET_FIRMWARE_DIR"
-
-          ./scripts/download_fw.sh --ignore-target --ignore-source "$DONOR_FIRMWARE"
-          ./scripts/extract_fw.sh --ignore-target --ignore-source "$DONOR_FIRMWARE"
-
-          donor_partition="$FW_DIR/$DONOR_DIR"
-          donor_partitions=(
-            "$donor_partition/system"
-            "$donor_partition/system_ext"
-          )
-          donor_root="prebuilts/samsung/r9qxxx/system"
-          required_files=(
-            "bin/surfaceflinger"
-            "lib/libgui.so"
-            "lib/libui.so"
-            "lib64/libgui.so"
-            "lib64/libui.so"
-            "priv-app/BiometricSetting/BiometricSetting.apk"
-          )
-          for file in "${required_files[@]}"; do
-            donor_file=""
-            for partition in "${donor_partitions[@]}"; do
-              [[ -d "$partition" ]] || continue
-              donor_file="$(find "$partition" -path "*/$file" -print -quit)"
-              [[ -n "$donor_file" ]] && break
-            done
-            if [[ -z "$donor_file" || ( ! -s "$donor_file" && ! -L "$donor_file" ) ]]; then
-              echo "Missing optical fingerprint donor file ending in /$file under $donor_partition/{system,system_ext}" >&2
-              exit 1
-            fi
-            echo "Using optical fingerprint donor file: $donor_file"
-            mkdir -p "$donor_root/$(dirname "$file")"
-            cp -fa "$donor_file" "$donor_root/$file"
-          done
-
-          cp -f "$FW_DIR/$DONOR_DIR/.extracted" "prebuilts/samsung/r9qxxx/.optical-fod-version"
-
-          rm -rf "$ODIN_DIR/$DONOR_DIR" "$FW_DIR/$DONOR_DIR"
+          bash scripts/download_optical_fod_donor.sh
 
       - name: Save optical fingerprint donor cache
         if: success() && steps.optical-donor-cache-check.outputs.usable != 'true'
@@ -507,7 +463,7 @@ jobs:
             prebuilts/samsung/r9qxxx/system/lib64/libui.so
             prebuilts/samsung/r9qxxx/system/priv-app/BiometricSetting/BiometricSetting.apk
             prebuilts/samsung/r9qxxx/.optical-fod-version
-          key: fp-donor-${{ runner.os }}-G990B_EUX-${{ steps.firmware-refs.outputs.donor_hash }}
+          key: fp-donor-${{ runner.os }}-unica-${{ hashFiles('scripts/optical_fod_donor.version', 'scripts/optical_fod_donor.sha256') }}
 
       - name: Build ROM
         id: build-rom
