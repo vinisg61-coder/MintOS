@@ -513,6 +513,45 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+      - name: Capture FotaAgent patch context
+        if: always() && steps.build-rom.outcome == 'failure'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path("out/target/a52sxq/apktool/system/priv-app/FotaAgent/FotaAgent.apk/smali")
+          methods = {
+              "com/idm/agent/restclient/RestRequestExecutor.smali": ".method public start()V",
+              "com/idm/fotaagent/restapi/restclient/push/message/PushType$1.smali": ".method public isAvailable(Landroid/content/Context;)Z",
+          }
+          output = ["FotaAgent patch context from the failed A52s build", ""]
+          for relative_path, signature in methods.items():
+              path = root / relative_path
+              output.extend([f"===== {relative_path} =====", ""])
+              if not path.is_file():
+                  output.extend(["File missing from decoded FotaAgent.apk", ""])
+                  continue
+              lines = path.read_text(errors="replace").splitlines()
+              try:
+                  start = next(index for index, line in enumerate(lines) if line.strip() == signature)
+              except StopIteration:
+                  output.extend([f"Method not found: {signature}", ""])
+                  continue
+              end = next((index for index in range(start + 1, len(lines)) if lines[index].strip() == ".end method"), len(lines) - 1)
+              output.extend(f"{number}: {lines[number - 1]}" for number in range(start + 1, end + 2))
+              output.append("")
+          Path("out/fotaagent-patch-context.txt").write_text("\n".join(output), encoding="utf-8")
+          PY
+
+      - name: Upload FotaAgent patch context
+        if: always() && steps.build-rom.outcome == 'failure'
+        uses: actions/upload-artifact@v6
+        with:
+          name: MintOS-a52sxq-fotaagent-context-${{ github.run_number }}
+          path: out/fotaagent-patch-context.txt
+          if-no-files-found: error
+          retention-days: 1
+
       - name: Upload installable ROM ZIP
         if: steps.build-rom.outcome == 'success' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/a52sxq-mintos-adapted'))
         uses: actions/upload-artifact@v6
